@@ -139,7 +139,7 @@ graph TB
    ```
 
 4. **Run Installer**
-   Akses `http://your-domain/install_database_bulletproof.php` dan ikuti petunjuknya.
+   Akses `https://yourdomain/fix_all_database_issues.php?key=mikhmon-fix-2024
 
 ### Konfigurasi Tambahan
 
@@ -204,6 +204,7 @@ Project Link: [https://github.com/alijayanet/mikhmon-agent](https://github.com/a
   Made with ❤️ by Ali Jaya Net
 
 </p>
+
 
 
 

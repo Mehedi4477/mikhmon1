@@ -135,7 +135,7 @@ graph TB
    ```
 
 4. **Run Installer**
-   Akses `http://your-domain/install_agent_system.php` dan ikuti petunjuknya.
+   Akses `http://your-domain/install_database_bulletproof` dan ikuti petunjuknya.
 
 ### Konfigurasi Tambahan
 
@@ -200,3 +200,4 @@ Project Link: [https://github.com/alijayanet/mikhmon-agent](https://github.com/a
   Made with ❤️ by Ali Jaya Net
 
 </p>
+

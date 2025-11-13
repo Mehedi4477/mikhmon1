@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS agents (
     balance DECIMAL(15,2) DEFAULT 0.00,
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
     level ENUM('bronze', 'silver', 'gold', 'platinum') DEFAULT 'bronze',
-    commission_percent DECIMAL(5,2) DEFAULT 0.00,
+    commission_amount DECIMAL(15,2) DEFAULT 0.00,
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS agent_prices (
 CREATE TABLE IF NOT EXISTS agent_transactions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     agent_id INT NOT NULL,
-    transaction_type ENUM('topup', 'generate', 'refund', 'commission', 'penalty') NOT NULL,
+    transaction_type ENUM('topup', 'generate', 'refund', 'commission', 'penalty', 'digiflazz') NOT NULL,
     amount DECIMAL(15,2) NOT NULL,
     balance_before DECIMAL(15,2) NOT NULL,
     balance_after DECIMAL(15,2) NOT NULL,
@@ -139,6 +139,53 @@ CREATE TABLE IF NOT EXISTS agent_commissions (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Table: digiflazz_products
+-- Daftar produk digital yang diambil dari Digiflazz
+CREATE TABLE IF NOT EXISTS digiflazz_products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    buyer_sku_code VARCHAR(50) NOT NULL,
+    product_name VARCHAR(150) NOT NULL,
+    brand VARCHAR(100),
+    category VARCHAR(50),
+    type ENUM('prepaid', 'postpaid') DEFAULT 'prepaid',
+    price INT NOT NULL,
+    buyer_price INT,
+    seller_price INT,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    desc_header VARCHAR(150),
+    desc_footer TEXT,
+    icon_url VARCHAR(255),
+    allow_markup TINYINT(1) DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_sku (buyer_sku_code),
+    INDEX idx_category (category),
+    INDEX idx_brand (brand)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Table: digiflazz_transactions
+-- Riwayat transaksi pembelian produk digital via Digiflazz
+CREATE TABLE IF NOT EXISTS digiflazz_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    agent_id INT,
+    ref_id VARCHAR(60) NOT NULL,
+    buyer_sku_code VARCHAR(50) NOT NULL,
+    customer_no VARCHAR(50) NOT NULL,
+    customer_name VARCHAR(100),
+    status ENUM('pending', 'success', 'failed', 'refund') DEFAULT 'pending',
+    message VARCHAR(255),
+    price INT DEFAULT 0,
+    sell_price INT DEFAULT 0,
+    serial_number VARCHAR(100),
+    response TEXT,
+    whatsapp_notified TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL,
+    INDEX idx_ref (ref_id),
+    INDEX idx_agent (agent_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Table: agent_settings
 -- Pengaturan sistem agent
 CREATE TABLE IF NOT EXISTS agent_settings (
@@ -162,7 +209,13 @@ INSERT INTO agent_settings (setting_key, setting_value, setting_type, descriptio
 ('min_balance_alert', '10000', 'number', 'Alert when balance below this amount'),
 ('whatsapp_notification_enabled', '1', 'boolean', 'Send WhatsApp notification to agents'),
 ('agent_can_set_sell_price', '1', 'boolean', 'Allow agent to set their own sell price'),
-('voucher_prefix_agent', 'AG', 'string', 'Prefix for agent generated vouchers')
+('voucher_prefix_agent', 'AG', 'string', 'Prefix for agent generated vouchers'),
+('digiflazz_enabled', '0', 'boolean', 'Enable Digiflazz integration'),
+('digiflazz_username', '', 'string', 'Digiflazz buyer username'),
+('digiflazz_api_key', '', 'string', 'Digiflazz API key'),
+('digiflazz_allow_test', '1', 'boolean', 'Allow Digiflazz testing mode'),
+('digiflazz_default_markup_percent', '5', 'number', 'Default markup percent for Digiflazz products'),
+('digiflazz_last_sync', NULL, 'datetime', 'Last price list sync timestamp')
 ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value);
 
 -- ========================================
@@ -307,25 +360,22 @@ FOR EACH ROW
 BEGIN
     -- Calculate commission if enabled
     DECLARE v_commission_enabled BOOLEAN;
-    DECLARE v_commission_percent DECIMAL(5,2);
     DECLARE v_commission_amount DECIMAL(15,2);
     
     SELECT CAST(setting_value AS UNSIGNED) INTO v_commission_enabled
     FROM agent_settings WHERE setting_key = 'commission_enabled';
     
     IF v_commission_enabled THEN
-        SELECT commission_percent INTO v_commission_percent
+        SELECT commission_amount INTO v_commission_amount
         FROM agents WHERE id = NEW.agent_id;
         
-        IF v_commission_percent > 0 AND NEW.sell_price IS NOT NULL THEN
-            SET v_commission_amount = (NEW.sell_price * v_commission_percent / 100);
-            
+        IF v_commission_amount > 0 AND NEW.sell_price IS NOT NULL THEN
             INSERT INTO agent_commissions (
                 agent_id, voucher_id, commission_amount,
-                commission_percent, voucher_price
+                voucher_price
             ) VALUES (
                 NEW.agent_id, NEW.id, v_commission_amount,
-                v_commission_percent, NEW.sell_price
+                NEW.sell_price
             );
         END IF;
     END IF;
@@ -347,8 +397,8 @@ CREATE INDEX idx_agent_vouchers_profile ON agent_vouchers(profile_name, status);
 -- ========================================
 
 -- Insert sample agent (password: agent123)
-INSERT INTO agents (agent_code, agent_name, phone, email, password, balance, status, level, commission_percent, created_by) VALUES
-('AG001', 'Agent Demo', '081234567890', 'agent@demo.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 100000.00, 'active', 'silver', 5.00, 'admin');
+INSERT INTO agents (agent_code, agent_name, phone, email, password, balance, status, level, commission_amount, created_by) VALUES
+('AG001', 'Agent Demo', '081234567890', 'agent@demo.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 100000.00, 'active', 'silver', 5000.00, 'admin');
 
 -- ========================================
 -- END OF SQL SCRIPT

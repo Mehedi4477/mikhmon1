@@ -6,6 +6,7 @@
 
 class Agent {
     private $db;
+    private $hasCommissionAmountColumn;
     
     public function __construct() {
         // Ensure db_config is included
@@ -17,6 +18,8 @@ class Agent {
         if (!$this->db) {
             throw new Exception('Database connection failed');
         }
+
+        $this->hasCommissionAmountColumn = $this->checkTableColumnExists('agents', 'commission_amount');
     }
     
     /**
@@ -24,11 +27,30 @@ class Agent {
      */
     public function createAgent($data) {
         try {
-            $sql = "INSERT INTO agents (agent_code, agent_name, phone, email, password, balance, status, level, commission_percent, created_by, notes) 
-                    VALUES (:agent_code, :agent_name, :phone, :email, :password, :balance, :status, :level, :commission_percent, :created_by, :notes)";
-            
+            $fields = [
+                'agent_code' => ':agent_code',
+                'agent_name' => ':agent_name',
+                'phone' => ':phone',
+                'email' => ':email',
+                'password' => ':password',
+                'balance' => ':balance',
+                'status' => ':status',
+                'level' => ':level',
+                'created_by' => ':created_by',
+                'notes' => ':notes'
+            ];
+
+            if ($this->hasCommissionAmountColumn) {
+                $fields['commission_amount'] = ':commission_amount';
+            }
+
+            $columns = implode(', ', array_keys($fields));
+            $placeholders = implode(', ', array_values($fields));
+
+            $sql = "INSERT INTO agents ($columns) VALUES ($placeholders)";
             $stmt = $this->db->prepare($sql);
-            $stmt->execute([
+
+            $params = [
                 ':agent_code' => $data['agent_code'],
                 ':agent_name' => $data['agent_name'],
                 ':phone' => $data['phone'],
@@ -37,11 +59,16 @@ class Agent {
                 ':balance' => $data['balance'] ?? 0,
                 ':status' => $data['status'] ?? 'active',
                 ':level' => $data['level'] ?? 'bronze',
-                ':commission_percent' => $data['commission_percent'] ?? 0,
                 ':created_by' => $data['created_by'] ?? 'admin',
                 ':notes' => $data['notes'] ?? null
-            ]);
-            
+            ];
+
+            if ($this->hasCommissionAmountColumn) {
+                $params[':commission_amount'] = $data['commission_amount'] ?? 0;
+            }
+
+            $stmt->execute($params);
+
             return [
                 'success' => true,
                 'agent_id' => $this->db->lastInsertId(),
@@ -62,7 +89,18 @@ class Agent {
         $sql = "SELECT * FROM agents WHERE id = :id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id]);
-        return $stmt->fetch();
+        $agent = $stmt->fetch();
+
+        if ($agent && !$this->hasCommissionAmountColumn) {
+            $commissionSetting = $this->getAgentSettings($id, 'billing_commission_amount');
+            if ($commissionSetting !== false && $commissionSetting !== null) {
+                $agent['commission_amount'] = (float)$commissionSetting;
+            } else {
+                $agent['commission_amount'] = 0;
+            }
+        }
+
+        return $agent;
     }
     
     /**
@@ -112,8 +150,14 @@ class Agent {
             $fields = [];
             $params = [':id' => $id];
             
+            $commissionAmountPending = null;
+
             foreach ($data as $key => $value) {
                 if ($key != 'id' && $key != 'password') {
+                    if ($key === 'commission_amount' && !$this->hasCommissionAmountColumn) {
+                        $commissionAmountPending = $value;
+                        continue;
+                    }
                     $fields[] = "$key = :$key";
                     $params[":$key"] = $value;
                 }
@@ -128,6 +172,13 @@ class Agent {
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             
+            if ($commissionAmountPending !== null) {
+                $this->setAgentSetting($id, 'billing_commission_amount', $commissionAmountPending);
+            } elseif (isset($data['commission_amount'])) {
+                // Keep settings table synced for newer schemas as well
+                $this->setAgentSetting($id, 'billing_commission_amount', $data['commission_amount']);
+            }
+
             return ['success' => true, 'message' => 'Agent berhasil diupdate'];
         } catch (PDOException $e) {
             return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
@@ -152,8 +203,13 @@ class Agent {
      * Topup agent balance
      */
     public function topupBalance($agentId, $amount, $description = '', $createdBy = 'admin') {
+        $startedTransaction = false;
+
         try {
-            $this->db->beginTransaction();
+            if (!$this->db->inTransaction()) {
+                $this->db->beginTransaction();
+                $startedTransaction = true;
+            }
             
             // Get current balance
             $agent = $this->getAgentById($agentId);
@@ -178,8 +234,10 @@ class Agent {
                 ':created_by' => $createdBy
             ]);
             
-            $this->db->commit();
-            
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+
             return [
                 'success' => true,
                 'balance_before' => $balanceBefore,
@@ -187,7 +245,9 @@ class Agent {
                 'message' => 'Topup berhasil'
             ];
         } catch (PDOException $e) {
-            $this->db->rollBack();
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
         }
     }
@@ -195,9 +255,14 @@ class Agent {
     /**
      * Deduct agent balance
      */
-    public function deductBalance($agentId, $amount, $profileName, $username, $description = '') {
+    public function deductBalance($agentId, $amount, $profileName, $username, $description = '', $transactionType = 'generate', $referenceId = null, $createdBy = null) {
+        $startedTransaction = false;
+
         try {
-            $this->db->beginTransaction();
+            if (!$this->db->inTransaction()) {
+                $this->db->beginTransaction();
+                $startedTransaction = true;
+            }
             
             // Get current balance
             $agent = $this->getAgentById($agentId);
@@ -205,7 +270,9 @@ class Agent {
             
             // Check if balance sufficient
             if ($balanceBefore < $amount) {
-                $this->db->rollBack();
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
                 return [
                     'success' => false,
                     'message' => 'Saldo tidak mencukupi. Saldo Anda: Rp ' . number_format($balanceBefore, 0, ',', '.')
@@ -220,23 +287,28 @@ class Agent {
             $stmt->execute([':balance' => $balanceAfter, ':id' => $agentId]);
             
             // Insert transaction
-            $sql = "INSERT INTO agent_transactions (agent_id, transaction_type, amount, balance_before, balance_after, profile_name, voucher_username, description) 
-                    VALUES (:agent_id, 'generate', :amount, :balance_before, :balance_after, :profile_name, :username, :description)";
+            $sql = "INSERT INTO agent_transactions (agent_id, transaction_type, amount, balance_before, balance_after, profile_name, voucher_username, description, reference_id, created_by) 
+                    VALUES (:agent_id, :transaction_type, :amount, :balance_before, :balance_after, :profile_name, :username, :description, :reference_id, :created_by)";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
                 ':agent_id' => $agentId,
+                ':transaction_type' => $transactionType,
                 ':amount' => $amount,
                 ':balance_before' => $balanceBefore,
                 ':balance_after' => $balanceAfter,
                 ':profile_name' => $profileName,
                 ':username' => $username,
-                ':description' => $description
+                ':description' => $description,
+                ':reference_id' => $referenceId,
+                ':created_by' => $createdBy
             ]);
             
             $transactionId = $this->db->lastInsertId();
             
-            $this->db->commit();
-            
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+
             return [
                 'success' => true,
                 'transaction_id' => $transactionId,
@@ -245,7 +317,9 @@ class Agent {
                 'message' => 'Saldo berhasil dipotong'
             ];
         } catch (PDOException $e) {
-            $this->db->rollBack();
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
         }
     }
@@ -262,12 +336,106 @@ class Agent {
      * Get agent transactions
      */
     public function getTransactions($agentId, $limit = 50) {
-        $sql = "SELECT * FROM agent_transactions WHERE agent_id = :agent_id ORDER BY created_at DESC LIMIT :limit";
+        $sql = "SELECT at.*, dt.status AS digiflazz_status, dt.serial_number AS digiflazz_serial,
+                       dt.message AS digiflazz_message, dt.customer_no AS digiflazz_customer_no,
+                       dt.customer_name AS digiflazz_customer_name, dt.price AS digiflazz_base_price,
+                       dt.sell_price AS digiflazz_sell_price,
+                       bi.amount AS billing_invoice_amount, bi.status AS billing_invoice_status,
+                       bi.period AS billing_invoice_period,
+                       bc.name AS billing_customer_name,
+                       bp.profile_name AS billing_profile_name
+                FROM agent_transactions at
+                LEFT JOIN digiflazz_transactions dt ON dt.ref_id = at.voucher_username
+                LEFT JOIN billing_invoices bi ON bi.id = at.reference_id
+                LEFT JOIN billing_customers bc ON bc.id = bi.customer_id
+                LEFT JOIN billing_profiles bp ON bp.id = bc.profile_id
+                WHERE at.agent_id = :agent_id
+                ORDER BY at.created_at DESC
+                LIMIT :limit";
+
         $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':agent_id', $agentId, PDO::PARAM_INT);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get Digiflazz transactions only
+     */
+    public function getDigiflazzTransactions($agentId, $limit = 100) {
+        $sql = "SELECT at.*, dt.status AS digiflazz_status, dt.serial_number AS digiflazz_serial,
+                       dt.message AS digiflazz_message, dt.customer_no AS digiflazz_customer_no,
+                       dt.customer_name AS digiflazz_customer_name, dt.price AS digiflazz_base_price,
+                       dt.sell_price AS digiflazz_sell_price
+                FROM agent_transactions at
+                LEFT JOIN digiflazz_transactions dt ON dt.ref_id = at.voucher_username
+                WHERE at.agent_id = :agent_id AND at.transaction_type = 'digiflazz'
+                ORDER BY at.created_at DESC
+                LIMIT :limit";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':agent_id', $agentId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get Digiflazz transactions for admin view with optional filters
+     */
+    public function getDigiflazzTransactionsAdmin($agentId = null, $statusFilter = null, $limit = 200) {
+        $sql = "SELECT at.*, dt.status AS digiflazz_status, dt.serial_number AS digiflazz_serial,
+                       dt.message AS digiflazz_message, dt.customer_no AS digiflazz_customer_no,
+                       dt.customer_name AS digiflazz_customer_name, dt.price AS digiflazz_base_price,
+                       dt.sell_price AS digiflazz_sell_price, dt.buyer_sku_code AS digiflazz_sku,
+                       a.agent_name, a.agent_code
+                FROM agent_transactions at
+                INNER JOIN agents a ON a.id = at.agent_id
+                LEFT JOIN digiflazz_transactions dt ON dt.ref_id = at.voucher_username
+                WHERE at.transaction_type = 'digiflazz'";
+
+        $params = [];
+
+        if ($agentId) {
+            $sql .= " AND at.agent_id = :agent_id";
+            $params[':agent_id'] = (int)$agentId;
+        }
+
+        if ($statusFilter) {
+            $normalized = strtolower($statusFilter);
+            $statusMap = [
+                'success' => ['success', 'sukses', 'berhasil', 'ok'],
+                'pending' => ['pending', 'process', 'processing', 'menunggu'],
+                'failed' => ['failed', 'gagal', 'refund', 'refunded', 'cancel', 'canceled', 'error']
+            ];
+
+            if (isset($statusMap[$normalized])) {
+                $placeholders = [];
+                $i = 0;
+                foreach ($statusMap[$normalized] as $statusValue) {
+                    $paramKey = ':status_' . $i++;
+                    $placeholders[] = $paramKey;
+                    $params[$paramKey] = $statusValue;
+                }
+                $sql .= " AND LOWER(COALESCE(dt.status, '')) IN (" . implode(',', $placeholders) . ")";
+            } elseif ($normalized === 'empty') {
+                $sql .= " AND (dt.status IS NULL OR dt.status = '')";
+            }
+        }
+
+        $sql .= " ORDER BY at.created_at DESC LIMIT :limit";
+
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+
+        $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /**
@@ -370,6 +538,45 @@ class Agent {
     }
     
     /**
+     * Get agent settings by agent_id and optional key
+     */
+    public function getAgentSettings($agentId, $key = null) {
+        if ($key) {
+            $stmt = $this->db->prepare("SELECT setting_value FROM agent_settings WHERE agent_id = :agent_id AND setting_key = :key");
+            $stmt->execute([':agent_id' => $agentId, ':key' => $key]);
+            return $stmt->fetchColumn();
+        } else {
+            $stmt = $this->db->prepare("SELECT setting_key, setting_value FROM agent_settings WHERE agent_id = :agent_id");
+            $stmt->execute([':agent_id' => $agentId]);
+            $settings = [];
+            while ($row = $stmt->fetch()) {
+                $settings[$row['setting_key']] = $row['setting_value'];
+            }
+            return $settings;
+        }
+    }
+
+    /**
+     * Set agent setting value
+     */
+    public function setAgentSetting($agentId, $key, $value) {
+        try {
+            $sql = "INSERT INTO agent_settings (agent_id, setting_key, setting_value)
+                    VALUES (:agent_id, :setting_key, :setting_value)
+                    ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':agent_id' => $agentId,
+                ':setting_key' => $key,
+                ':setting_value' => $value
+            ]);
+            return ['success' => true];
+        } catch (PDOException $e) {
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }
+
+    /**
      * Get agent summary
      */
     public function getAgentSummary($agentId) {
@@ -377,5 +584,18 @@ class Agent {
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $agentId]);
         return $stmt->fetch();
+    }
+
+    /**
+     * Check if table column exists
+     */
+    private function checkTableColumnExists($table, $column) {
+        try {
+            $stmt = $this->db->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
+            $stmt->execute([':column' => $column]);
+            return (bool) $stmt->fetch();
+        } catch (PDOException $e) {
+            return false;
+        }
     }
 }

@@ -7,6 +7,7 @@
 class WhatsAppNotification {
     private $db;
     private $messageSettings;
+    private $lastSendResult = null;
     
     public function __construct() {
         if (!function_exists('getDBConnection')) {
@@ -82,7 +83,52 @@ class WhatsAppNotification {
         if (!function_exists('sendWhatsAppMessage')) {
             require_once(__DIR__ . '/../include/whatsapp_config.php');
         }
-        return sendWhatsAppMessage($phone, $message);
+        $this->lastSendResult = sendWhatsAppMessage($phone, $message);
+        return $this->lastSendResult;
+    }
+
+    /**
+     * Send plain WhatsApp message without additional formatting helpers.
+     */
+    public function sendPlainMessage(string $phone, string $message): bool
+    {
+        if (trim($phone) === '' || trim($message) === '') {
+            return false;
+        }
+
+        $result = $this->sendMessage($phone, $message);
+
+        if (is_bool($result)) {
+            return $result;
+        }
+
+        if (is_array($result)) {
+            if (isset($result['success'])) {
+                return (bool)$result['success'];
+            }
+            if (isset($result['status'])) {
+                $status = strtolower((string)$result['status']);
+                return in_array($status, ['ok', 'success', 'sent', 'true', '1'], true);
+            }
+        }
+
+        if (is_numeric($result)) {
+            return (bool)$result;
+        }
+
+        if (is_string($result)) {
+            $normalized = strtolower(trim($result));
+            if (in_array($normalized, ['ok', 'success', 'sent', 'true', '1'], true)) {
+                return true;
+            }
+        }
+
+        return !empty($result);
+    }
+
+    public function getLastSendResult()
+    {
+        return $this->lastSendResult;
     }
     
     /**
@@ -152,10 +198,7 @@ class WhatsAppNotification {
         $content .= "Voucher Anda telah expired:\n\n";
         $content .= "Username: `$username`\n";
         $content .= "Profile: *$profileName*\n\n";
-        $content .= "━━━━━━━━━━━━━━━━━━━━\n\n";
-        $content .= "Ingin beli voucher baru?\n";
-        $content .= "Ketik: *HARGA*\n\n";
-        $content .= "Atau hubungi kami untuk perpanjangan.";
+        $content .= "Silakan hubungi admin untuk perpanjangan.";
         
         $message = $this->formatMessage($content);
         return $this->sendMessage($phone, $message);
@@ -255,6 +298,166 @@ class WhatsAppNotification {
         ];
     }
     
+    /**
+     * Notify agent about successful Digiflazz transaction
+     */
+    public function notifyDigiflazzSuccess($agentId, array $transactionData, $balanceAfter = null) {
+        $agent = $this->getAgent($agentId);
+        if (!$agent) {
+            return false;
+        }
+
+        $productName = $transactionData['product_name'] ?? '-';
+        $customerNo = $transactionData['customer_no'] ?? '-';
+        $customerName = $transactionData['customer_name'] ?? '';
+        $statusRaw = strtoupper($transactionData['status'] ?? 'PENDING');
+        $message = $transactionData['message'] ?? '';
+        $refId = $transactionData['ref_id'] ?? '-';
+        $serialNumber = $transactionData['serial_number'] ?? '';
+        $price = (int)($transactionData['price'] ?? 0);
+
+        $icon = '⚡';
+        if (in_array($statusRaw, ['SUCCESS', 'SUCCES', 'SUKSES'])) {
+            $icon = '✅';
+        } elseif (in_array($statusRaw, ['FAILED', 'GAGAL', 'FAILED'])) {
+            $icon = '❌';
+        } elseif (in_array($statusRaw, ['PENDING', 'PROCESS', 'PROCESSING', 'MENUNGGU'])) {
+            $icon = '⏳';
+        }
+
+        $content  = "{$icon} *TRANSAKSI DIGIFLAZZ*\n\n";
+        $content .= "Halo *{$agent['agent_name']}*, transaksi pembayaran digital telah diproses.\n\n";
+        $content .= "━━━━━━━━━━━━━━━━━━━━\n\n";
+        $content .= "Produk : *{$productName}*\n";
+        $content .= "Nomor  : `{$customerNo}`\n";
+        if (!empty($customerName)) {
+            $content .= "Nama   : {$customerName}\n";
+        }
+        $content .= "Status : *{$statusRaw}*\n";
+        if (!empty($message)) {
+            $content .= "Pesan  : {$message}\n";
+        }
+        $content .= "Ref ID : {$refId}\n";
+        $content .= "Biaya  : Rp " . number_format($price, 0, ',', '.') . "\n";
+        if (!empty($serialNumber)) {
+            $content .= "SN     : `{$serialNumber}`\n";
+        }
+
+        $balanceValue = ($balanceAfter !== null) ? $balanceAfter : $agent['balance'];
+        $content .= "\n━━━━━━━━━━━━━━━━━━━━\n";
+        $content .= "Saldo tersisa: Rp " . number_format($balanceValue, 0, ',', '.');
+
+        $messageFormatted = $this->formatMessage($content);
+        return $this->sendMessage($agent['phone'], $messageFormatted);
+    }
+
+    /**
+     * Send billing reminder to customer
+     */
+    public function notifyBillingReminder(string $phone, array $payload): bool
+    {
+        if (empty($phone)) {
+            return false;
+        }
+
+        $template = $payload['template'] ?? "Halo {nama},\n\nTagihan WiFi periode {periode} sebesar Rp {jumlah}. Mohon lakukan pembayaran sebelum {jatuh_tempo}.\n\nNomor layanan: {nomor_layanan}";
+
+        $replacements = [
+            '{nama}' => $payload['customer_name'] ?? 'Pelanggan',
+            '{periode}' => $payload['period'] ?? '-',
+            '{jatuh_tempo}' => $payload['due_date'] ?? '-',
+            '{jumlah}' => $payload['amount_formatted'] ?? '0',
+            '{nomor_layanan}' => $payload['service_number'] ?? '-',
+            '{status}' => $payload['status'] ?? '-',
+            '{hari}' => $payload['days_remaining'] ?? '0',
+            '{portal_url}' => $payload['portal_url'] ?? '-'
+        ];
+
+        $message = str_replace(array_keys($replacements), array_values($replacements), $template);
+        $message = $this->formatMessage($message);
+        return $this->sendMessage($phone, $message);
+    }
+
+    /**
+     * Notify customer that service is isolated
+     */
+    public function notifyBillingIsolation(string $phone, array $payload = []): bool
+    {
+        if (empty($phone)) {
+            return false;
+        }
+
+        $content  = "⚠️ *LAYANAN DALAM ISOLASI*\n\n";
+        $content .= "Halo {nama}, layanan WiFi sementara dinonaktifkan karena tagihan periode {periode} belum dibayar.\n\n";
+        $content .= "Mohon lakukan pembayaran sebesar Rp {jumlah} agar layanan dapat diaktifkan kembali.";
+
+        $content = str_replace(
+            ['{nama}', '{periode}', '{jumlah}'],
+            [
+                $payload['customer_name'] ?? 'Pelanggan',
+                $payload['period'] ?? '-',
+                $payload['amount_formatted'] ?? '0'
+            ],
+            $content
+        );
+
+        $message = $this->formatMessage($content);
+        return $this->sendMessage($phone, $message);
+    }
+
+    /**
+     * Notify customer that service is restored
+     */
+    public function notifyBillingRestored(string $phone, array $payload = []): bool
+    {
+        if (empty($phone)) {
+            return false;
+        }
+
+        $content  = "✅ *LAYANAN AKTIF KEMBALI*\n\n";
+        $content .= "Terima kasih {nama}, pembayaran Anda untuk periode {periode} sudah kami terima. Layanan WiFi kini aktif kembali.";
+
+        $content = str_replace(
+            ['{nama}', '{periode}'],
+            [
+                $payload['customer_name'] ?? 'Pelanggan',
+                $payload['period'] ?? '-'
+            ],
+            $content
+        );
+
+        $message = $this->formatMessage($content);
+        return $this->sendMessage($phone, $message);
+    }
+
+    /**
+     * Notify customer that invoice has been paid by agent
+     */
+    public function notifyInvoicePaidByAgent(string $phone, array $payload = []): bool
+    {
+        if (empty($phone)) {
+            return false;
+        }
+
+        $content  = "💰 *TAGIHAN DIBAYAR*\n\n";
+        $content .= "Halo {nama}, tagihan Anda untuk periode {periode} sebesar Rp {jumlah} telah dibayar oleh agen {agen}.\n\n";
+        $content .= "Layanan WiFi Anda kini aktif kembali.";
+
+        $content = str_replace(
+            ['{nama}', '{periode}', '{jumlah}', '{agen}'],
+            [
+                $payload['customer_name'] ?? 'Pelanggan',
+                $payload['period'] ?? '-',
+                $payload['amount_formatted'] ?? '0',
+                $payload['agent_name'] ?? 'Agen'
+            ],
+            $content
+        );
+
+        $message = $this->formatMessage($content);
+        return $this->sendMessage($phone, $message);
+    }
+
     /**
      * Get agent data
      */

@@ -101,7 +101,7 @@ if (!isset($_SESSION["mikhmon"])) {
     $sgenieacs = "active";
     $mpage = "GenieACS - ONU Management";
 	
-  } elseif ($hotspot == "agent-setup" || $hotspot == "agent-list" || $hotspot == "agent-add" || $hotspot == "agent-edit" || $hotspot == "agent-prices" || $hotspot == "agent-topup" || $hotspot == "agent-transactions" || $hotspot == "voucher-settings" || $hotspot == "whatsapp-agent-settings" || $hotspot == "pricing" || $hotspot == "payment-gateway-config" || $hotspot == "payment-methods" || $hotspot == "public-sales") {
+  } elseif ($hotspot == "agent-setup" || $hotspot == "agent-list" || $hotspot == "agent-add" || $hotspot == "agent-edit" || $hotspot == "agent-prices" || $hotspot == "agent-topup" || $hotspot == "agent-transactions" || $hotspot == "voucher-settings" || $hotspot == "whatsapp-agent-settings" || $hotspot == "pricing" || $hotspot == "payment-gateway-config" || $hotspot == "payment-methods" || $hotspot == "public-sales" || $hotspot == "billing-dashboard" || $hotspot == "billing-profiles" || $hotspot == "billing-customers" || $hotspot == "billing-invoices" || $hotspot == "billing-settings" || $hotspot == "billing-portal") {
     $sagent = "active";
     if ($hotspot == "agent-setup") {
       $sagentsetup = "active";
@@ -124,12 +124,18 @@ if (!isset($_SESSION["mikhmon"])) {
     } elseif ($hotspot == "agent-transactions") {
       $sagenttrans = "active";
       $mpage = "Transaksi Agent";
+    } elseif ($hotspot == "digiflazz-transactions") {
+      $sdigiflazztrans = "active";
+      $mpage = "Riwayat Digiflazz";
     } elseif ($hotspot == "voucher-settings") {
       $svouchersettings = "active";
       $mpage = "Format Voucher";
     } elseif ($hotspot == "whatsapp-agent-settings") {
       $swhatsappagent = "active";
       $mpage = "WhatsApp Agent";
+    } elseif ($hotspot == "digiflazz-settings") {
+      $sdigiflazzsettings = "active";
+      $mpage = "Digiflazz Settings";
     } elseif ($hotspot == "pricing") {
       $spricing = "active";
       $mpage = "Harga Jual Voucher";
@@ -142,6 +148,24 @@ if (!isset($_SESSION["mikhmon"])) {
     } elseif ($hotspot == "public-sales") {
       $spublicsales = "active";
       $mpage = "Public Sales";
+    } elseif ($hotspot == "billing-dashboard") {
+      $sbillingdashboard = "active";
+      $mpage = "Billing Dashboard";
+    } elseif ($hotspot == "billing-profiles") {
+      $sbillingprofiles = "active";
+      $mpage = "Profil Paket Billing";
+    } elseif ($hotspot == "billing-customers") {
+      $sbillingcustomers = "active";
+      $mpage = "Pelanggan Billing";
+    } elseif ($hotspot == "billing-invoices") {
+      $sbillinginvoices = "active";
+      $mpage = "Tagihan Billing";
+    } elseif ($hotspot == "billing-settings") {
+      $sbillingsettings = "active";
+      $mpage = "Pengaturan Billing";
+    } elseif ($hotspot == "billing-portal") {
+      $sbillingportal = "active";
+      $mpage = "Portal Pelanggan";
     }
     $agentmenu = "menu-open";
 	
@@ -470,6 +494,17 @@ include('./info.php');
   </div>
 
   <!--agent management-->
+  <?php
+  $sbilling = $sbilling ?? '';
+  $billingmenu = $billingmenu ?? '';
+  $sbillingdashboard = $sbillingdashboard ?? '';
+  $sbillingprofiles = $sbillingprofiles ?? '';
+  $sbillingcustomers = $sbillingcustomers ?? '';
+  $sbillinginvoices = $sbillinginvoices ?? '';
+  $sbillingsettings = $sbillingsettings ?? '';
+  $sbillingportal = $sbillingportal ?? '';
+  ?>
+
   <div class="dropdown-btn <?= $sagent; ?>"><i class=" fa fa-users"></i> Agent/Reseller
     <i class="fa fa-caret-down"></i>
   </div>
@@ -481,6 +516,7 @@ include('./info.php');
     <a href="./?hotspot=agent-prices&session=<?= $session; ?>" class="<?= $sagentprices; ?>"> <i class="fa fa-tags "></i> Harga Agent </a>
     <a href="./?hotspot=agent-topup&session=<?= $session; ?>" class="<?= $sagenttopup; ?>"> <i class="fa fa-money "></i> Topup Saldo </a>
     <a href="./?hotspot=agent-transactions&session=<?= $session; ?>" class="<?= $sagenttrans; ?>"> <i class="fa fa-history "></i> Transaksi Agent </a>
+    <a href="./?hotspot=digiflazz-transactions&session=<?= $session; ?>" class="<?= isset($sdigiflazztrans) ? $sdigiflazztrans : ''; ?>"> <i class="fa fa-bolt "></i> Riwayat Digiflazz </a>
     <a href="./?hotspot=whatsapp-agent-settings&session=<?= $session; ?>" class="<?= $swhatsappagent; ?>"> <i class="fa fa-whatsapp "></i> WhatsApp Agent </a>
     
     <hr style="margin: 5px 0; border-color: #ddd;">
@@ -493,8 +529,19 @@ include('./info.php');
     <!-- Public Sales -->
     <a href="./?hotspot=pricing&session=<?= $session; ?>" class="<?= $spricing; ?>"> <i class="fa fa-dollar "></i> Harga Public Sales </a>
     <a href="./?hotspot=payment-gateway-config&session=<?= $session; ?>" class="<?= $spaymentgateway; ?>"> <i class="fa fa-credit-card "></i> Payment Gateway </a>
+    <a href="./?hotspot=digiflazz-settings&session=<?= $session; ?>" class="<?= isset($sdigiflazzsettings) ? $sdigiflazzsettings : ''; ?>"> <i class="fa fa-plug "></i> Digiflazz Settings </a>
     <a href="./?hotspot=payment-methods&session=<?= $session; ?>" class="<?= $spaymentmethods; ?>"> <i class="fa fa-money "></i> Payment Methods </a>
     <a href="./?hotspot=public-sales&session=<?= $session; ?>" class="<?= $spublicsales; ?>"> <i class="fa fa-shopping-cart "></i> Transaksi Public </a>
+
+    <hr style="margin: 5px 0; border-color: #ddd;">
+
+    <!-- Billing Module -->
+    <a href="./?hotspot=billing-dashboard&session=<?= $session; ?>" class="<?= $sbillingdashboard; ?>"> <i class="fa fa-credit-card "></i> Billing Dashboard </a>
+    <a href="./?hotspot=billing-profiles&session=<?= $session; ?>" class="<?= $sbillingprofiles; ?>"> <i class="fa fa-sliders "></i> Profil Paket Billing </a>
+    <a href="./?hotspot=billing-customers&session=<?= $session; ?>" class="<?= $sbillingcustomers; ?>"> <i class="fa fa-users "></i> Pelanggan Billing </a>
+    <a href="./?hotspot=billing-invoices&session=<?= $session; ?>" class="<?= $sbillinginvoices; ?>"> <i class="fa fa-file-text-o "></i> Tagihan & Pembayaran </a>
+    <a href="./?hotspot=billing-settings&session=<?= $session; ?>" class="<?= $sbillingsettings; ?>"> <i class="fa fa-cog "></i> Pengaturan Billing </a>
+    <a href="./?hotspot=billing-portal&session=<?= $session; ?>" class="<?= $sbillingportal; ?>"> <i class="fa fa-globe "></i> Portal Pelanggan </a>
   </div>
 
  <!--genieacs-->

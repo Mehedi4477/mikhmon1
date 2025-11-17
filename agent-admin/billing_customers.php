@@ -274,6 +274,9 @@ $isolatedCustomers = count(array_filter($customers, static fn ($row) => (int)($r
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h3 class="mb-0"><i class="fa fa-users"></i> Pelanggan Billing</h3>
                 <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="showAddCustomerModal()" title="Tambah pelanggan baru">
+                        <i class="fa fa-plus"></i> Tambah Pelanggan
+                    </button>
                     <a href="./billing/customers_export.php" class="btn btn-sm btn-outline-success" title="Export pelanggan ke Excel">
                         <i class="fa fa-download"></i> Export
                     </a>
@@ -448,95 +451,105 @@ $isolatedCustomers = count(array_filter($customers, static fn ($row) => (int)($r
                     </table>
                 </div>
 
-                <div class="placeholder-form">
-                    <h4 style="margin-top:0;"><i class="fa fa-plus"></i> Tambah Pelanggan</h4>
-                    <p style="margin-bottom: 15px;">Gunakan formulir ini untuk menambahkan pelanggan baru. Data akan langsung tersimpan melalui API billing.</p>
-                    <form data-api-form data-api-endpoint="./billing/customers.php" data-success-reload="true">
-                        <input type="hidden" name="action" value="create">
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="customer_name">Nama Pelanggan</label>
-                                    <input type="text" id="customer_name" name="name" class="form-control" placeholder="Nama lengkap" required>
-                                </div>
-                            </div>
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="customer_phone">No. WhatsApp</label>
-                                    <input type="text" id="customer_phone" name="phone" class="form-control" placeholder="08xxx" required>
-                                    <small class="form-text text-muted">Nomor WhatsApp pelanggan (dipakai untuk invoice & fallback GenieACS).</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="customer_email">Email</label>
-                                    <input type="email" id="customer_email" name="email" class="form-control" placeholder="opsional">
-                                </div>
-                            </div>
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="service_number">Nomor Layanan / CPE ID</label>
-                                    <input type="text" id="service_number" name="service_number" class="form-control" placeholder="Digunakan untuk mapping ke GenieACS">
-                                    <small class="form-text text-muted">Opsional, dipakai sebagai fallback (Device ID) jika PPPoE & tag tidak ditemukan.</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="genieacs_pppoe_username">PPPoE Username (GenieACS)</label>
-                                    <input type="text" id="genieacs_pppoe_username" name="genieacs_pppoe_username" class="form-control" placeholder="user123@isp" required>
-                                    <small class="form-text text-muted">Harus sama dengan PPPoE username di GenieACS.</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="profile_id">Paket Billing</label>
-                                    <select id="profile_id" name="profile_id" class="form-control" required>
-                                        <option value="">-- pilih paket --</option>
-<?php foreach ($profileOptions as $profile): ?>
-                                        <option value="<?= (int)$profile['id']; ?>"><?= htmlspecialchars($profile['profile_name']); ?></option>
-<?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-3 col-box-12">
-                                <div class="form-group">
-                                    <label for="billing_day">Tanggal Tagihan</label>
-                                    <input type="number" id="billing_day" name="billing_day" class="form-control" min="1" max="28" value="1" required>
-                                </div>
-                            </div>
-                            <div class="col-3 col-box-12">
-                                <div class="form-group">
-                                    <label for="status">Status</label>
-                                    <select id="status" name="status" class="form-control">
-                                        <option value="active">Aktif</option>
-                                        <option value="inactive">Tidak aktif</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="address">Alamat</label>
-                            <textarea id="address" name="address" rows="2" class="form-control" placeholder="Opsional"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="notes">Catatan</label>
-                            <textarea id="notes" name="notes" rows="2" class="form-control" placeholder="Opsional"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fa fa-save"></i> Simpan Pelanggan
-                        </button>
-                    </form>
-                </div>
             </div>
         </div>
     </div>
 </div>
+</div>
+
+<!-- Modal Tambah Pelanggan -->
+<div id="customerAddModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background:white;width:80%;max-width:800px;margin:50px auto;padding:20px;border-radius:10px;max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;"><i class="fa fa-plus"></i> Tambah Pelanggan Baru</h3>
+            <button type="button" onclick="hideAddCustomerModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form data-api-form data-api-endpoint="./billing/customers.php" data-success-reload="true">
+            <input type="hidden" name="action" value="create">
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_customer_name">Nama Pelanggan</label>
+                        <input type="text" id="modal_customer_name" name="name" class="form-control" placeholder="Nama lengkap" required>
+                    </div>
+                </div>
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_customer_phone">No. WhatsApp</label>
+                        <input type="text" id="modal_customer_phone" name="phone" class="form-control" placeholder="08xxx" required>
+                        <small class="form-text text-muted">Nomor WhatsApp pelanggan (dipakai untuk invoice & fallback GenieACS).</small>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_customer_email">Email</label>
+                        <input type="email" id="modal_customer_email" name="email" class="form-control" placeholder="opsional">
+                    </div>
+                </div>
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_service_number">Nomor Layanan / CPE ID</label>
+                        <input type="text" id="modal_service_number" name="service_number" class="form-control" placeholder="Digunakan untuk mapping ke GenieACS">
+                        <small class="form-text text-muted">Opsional, dipakai sebagai fallback (Device ID) jika PPPoE & tag tidak ditemukan.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_genieacs_pppoe_username">PPPoE Username (GenieACS)</label>
+                        <input type="text" id="modal_genieacs_pppoe_username" name="genieacs_pppoe_username" class="form-control" placeholder="user123@isp" required>
+                        <small class="form-text text-muted">Harus sama dengan PPPoE username di GenieACS.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_profile_id">Paket Billing</label>
+                        <select id="modal_profile_id" name="profile_id" class="form-control" required>
+                            <option value="">-- pilih paket --</option>
+<?php foreach ($profileOptions as $profile): ?>
+                            <option value="<?= (int)$profile['id']; ?>"><?= htmlspecialchars($profile['profile_name']); ?></option>
+<?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-3 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_billing_day">Tanggal Isolasi</label>
+                        <input type="number" id="modal_billing_day" name="billing_day" class="form-control" min="1" max="28" value="20" required>
+                        <small class="form-text text-muted">Tanggal dalam sebulan kapan pelanggan akan diisolir jika belum bayar (1-28).</small>
+                    </div>
+                </div>
+                <div class="col-3 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_status">Status</label>
+                        <select id="modal_status" name="status" class="form-control">
+                            <option value="active">Aktif</option>
+                            <option value="inactive">Tidak aktif</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="modal_address">Alamat</label>
+                <textarea id="modal_address" name="address" rows="2" class="form-control" placeholder="Opsional"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="modal_notes">Catatan</label>
+                <textarea id="modal_notes" name="notes" rows="2" class="form-control" placeholder="Opsional"></textarea>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideAddCustomerModal()">Batal</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa fa-save"></i> Simpan Pelanggan
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Modal Edit Pelanggan -->
@@ -591,8 +604,17 @@ $isolatedCustomers = count(array_filter($customers, static fn ($row) => (int)($r
                     </div>
                     
                     <div class="form-group">
-                        <label>Tanggal Tagihan</label>
+                        <label>Tanggal Isolasi</label>
                         <input type="number" name="billing_day" id="edit_billing_day" class="form-control" min="1" max="28" required>
+                        <small class="form-text text-muted">Tanggal dalam sebulan kapan pelanggan akan diisolir jika belum bayar (1-28).</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Isolasi Otomatis</label>
+                        <select name="auto_isolation" id="edit_auto_isolation" class="form-control">
+                            <option value="1">Ya</option>
+                            <option value="0">Tidak</option>
+                        </select>
+                        <small class="form-text text-muted">Apakah pelanggan diisolir otomatis saat lewat tanggal isolasi.</small>
                     </div>
                 </div>
             </div>
@@ -1002,5 +1024,22 @@ document.getElementById('customerImportForm').addEventListener('submit', functio
             resultBox.textContent = 'Terjadi kesalahan saat memproses import.';
         });
 });
+
+// Modal Tambah Pelanggan Functions
+function showAddCustomerModal() {
+    const modal = document.getElementById('customerAddModal');
+    modal.style.display = 'block';
+    modal.style.opacity = '1';
+    modal.querySelector('div').style.transform = 'translateY(0)';
+}
+
+function hideAddCustomerModal() {
+    const modal = document.getElementById('customerAddModal');
+    modal.style.opacity = '0';
+    modal.querySelector('div').style.transform = 'translateY(-20px)';
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
 </script>
 </div>

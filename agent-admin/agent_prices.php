@@ -52,8 +52,8 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Handle set/update price
-if (isset($_POST['set_price'])) {
+// Handle set/update price (both regular POST and AJAX)
+if (isset($_POST['set_price']) || (isset($_POST['action']) && $_POST['action'] == 'create')) {
     $agentId = $_POST['agent_id'];
     $profileName = $_POST['profile_name'];
     $buyPrice = floatval($_POST['buy_price']);
@@ -61,10 +61,25 @@ if (isset($_POST['set_price'])) {
     
     $result = $agent->setAgentPrice($agentId, $profileName, $buyPrice, $sellPrice);
     
+    // Check if this is an AJAX request
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     if ($result['success']) {
-        $success = 'Harga berhasil diset!';
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Harga berhasil diset!']);
+            exit;
+        } else {
+            $success = 'Harga berhasil diset!';
+        }
     } else {
-        $error = $result['message'];
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $result['message']]);
+            exit;
+        } else {
+            $error = $result['message'];
+        }
     }
 }
 
@@ -88,6 +103,30 @@ $session = $_GET['session'] ?? (isset($session) ? $session : '');
     }
 }
 
+/* Modal styles */
+#priceAddModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 10000 !important;
+}
+
+#priceAddModal > div {
+    background: white;
+    width: 80%;
+    max-width: 800px;
+    margin: 50px auto;
+    padding: 20px;
+    border-radius: 10px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    z-index: 10001 !important;
+}
 </style>
 
 <div class="row">
@@ -95,6 +134,11 @@ $session = $_GET['session'] ?? (isset($session) ? $session : '');
 <div class="card">
 <div class="card-header">
     <h3><i class="fa fa-tags"></i> Kelola Harga Agent</h3>
+    <div class="btn-group" style="margin-left: auto;">
+        <button type="button" class="btn btn-sm btn-primary" onclick="showAddPriceModal()" title="Tambah harga baru">
+            <i class="fa fa-plus"></i> Tambah Harga
+        </button>
+    </div>
 </div>
 <div class="card-body">
     <?php if ($error): ?>
@@ -104,13 +148,20 @@ $session = $_GET['session'] ?? (isset($session) ? $session : '');
     <?php if ($success): ?>
     <div class="alert alert-success"><i class="fa fa-check-circle"></i> <?= $success; ?></div>
     <?php endif; ?>
+</div>
+</div>
+</div>
+</div>
 
-    <div class="card">
-        <div class="card-header">
-            <h3><i class="fa fa-plus-circle"></i> Set Harga Baru</h3>
+<!-- Modal Tambah Harga -->
+<div id="priceAddModal">
+    <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;"><i class="fa fa-plus-circle"></i> Set Harga Baru</h3>
+            <button type="button" onclick="hideAddPriceModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
         </div>
-        <div class="card-body">
-        <form method="POST">
+        <form data-api-form data-api-endpoint="./agent-prices.php" data-success-reload="true">
+            <input type="hidden" name="action" value="create">
             <div class="form-row">
                 <div class="form-group">
                     <label>Pilih Agent</label>
@@ -141,67 +192,104 @@ $session = $_GET['session'] ?? (isset($session) ? $session : '');
                     <input type="number" name="sell_price" class="form-control" placeholder="7000" required>
                 </div>
             </div>
-            <button type="submit" name="set_price" class="btn btn-primary">
-                <i class="fa fa-save"></i> Simpan Harga
-            </button>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideAddPriceModal()">Batal</button>
+                <button type="submit" name="set_price" class="btn btn-primary">
+                    <i class="fa fa-save"></i> Simpan Harga
+                </button>
+            </div>
         </form>
-        </div>
     </div>
-
-    <?php foreach ($agents as $agt): ?>
-    <?php $agentPrices = $agent->getAllAgentPrices($agt['id']); ?>
-    <?php if (!empty($agentPrices)): ?>
-    <div class="card">
-        <div class="card-header">
-            <h3><i class="fa fa-user"></i> <?= htmlspecialchars($agt['agent_name']); ?> (<?= htmlspecialchars($agt['agent_code']); ?>)</h3>
-        </div>
-        <div class="card-body">
-        <div class="table-responsive">
-        <table class="table table-bordered table-hover text-nowrap">
-            <thead>
-                <tr>
-                    <th>Profile</th>
-                    <th>Harga Beli</th>
-                    <th>Harga Jual</th>
-                    <th>Profit</th>
-                    <th>Update</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($agentPrices as $price): ?>
-                <tr>
-                    <td><strong><?= $price['profile_name']; ?></strong></td>
-                    <td>Rp <?= number_format($price['buy_price'], 0, ',', '.'); ?></td>
-                    <td>Rp <?= number_format($price['sell_price'], 0, ',', '.'); ?></td>
-                    <td style="color: #10b981; font-weight: bold;">Rp <?= number_format($price['sell_price'] - $price['buy_price'], 0, ',', '.'); ?></td>
-                    <td><?= date('d M Y', strtotime($price['updated_at'])); ?></td>
-                    <td>
-                        <button onclick="editPrice(<?= $agt['id']; ?>, '<?= $price['profile_name']; ?>', <?= $price['buy_price']; ?>, <?= $price['sell_price']; ?>)" 
-                                class="btn btn-sm btn-warning" title="Edit">
-                            <i class="fa fa-edit"></i>
-                        </button>
-                        <a href="?hotspot=agent-prices&delete=<?= $price['id']; ?>&session=<?= $session; ?>" 
-                           onclick="return confirm('Yakin ingin menghapus harga untuk profile <?= $price['profile_name']; ?>?')"
-                           class="btn btn-sm btn-danger" title="Hapus">
-                            <i class="fa fa-trash"></i>
-                        </a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        </div>
-        </div>
-    </div>
-    <?php endif; ?>
-    <?php endforeach; ?>
-</div>
-</div>
-</div>
 </div>
 
+<?php foreach ($agents as $agt): ?>
+<?php $agentPrices = $agent->getAllAgentPrices($agt['id']); ?>
+<?php if (!empty($agentPrices)): ?>
+<div class="card">
+    <div class="card-header">
+        <h3><i class="fa fa-user"></i> <?= htmlspecialchars($agt['agent_name']); ?> (<?= htmlspecialchars($agt['agent_code']); ?>)</h3>
+    </div>
+    <div class="card-body">
+    <div class="table-responsive">
+    <table class="table table-bordered table-hover text-nowrap">
+        <thead>
+            <tr>
+                <th>Profile</th>
+                <th>Harga Beli</th>
+                <th>Harga Jual</th>
+                <th>Profit</th>
+                <th>Update</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($agentPrices as $price): ?>
+            <tr>
+                <td><strong><?= $price['profile_name']; ?></strong></td>
+                <td>Rp <?= number_format($price['buy_price'], 0, ',', '.'); ?></td>
+                <td>Rp <?= number_format($price['sell_price'], 0, ',', '.'); ?></td>
+                <td style="color: #10b981; font-weight: bold;">Rp <?= number_format($price['sell_price'] - $price['buy_price'], 0, ',', '.'); ?></td>
+                <td><?= date('d M Y', strtotime($price['updated_at'])); ?></td>
+                <td>
+                    <button onclick="editPrice(<?= $agt['id']; ?>, '<?= $price['profile_name']; ?>', <?= $price['buy_price']; ?>, <?= $price['sell_price']; ?>)" 
+                            class="btn btn-sm btn-warning" title="Edit">
+                        <i class="fa fa-edit"></i>
+                    </button>
+                    <a href="?hotspot=agent-prices&delete=<?= $price['id']; ?>&session=<?= $session; ?>" 
+                       onclick="return confirm('Yakin ingin menghapus harga untuk profile <?= $price['profile_name']; ?>?')"
+                       class="btn btn-sm btn-danger" title="Hapus">
+                        <i class="fa fa-trash"></i>
+                    </a>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+    </div>
+</div>
+<?php endif; ?>
+<?php endforeach; ?>
+
+<script src="./js/billing_forms.js"></script>
 <script>
+function showAddPriceModal() {
+    // Show modal
+    var modal = document.getElementById('priceAddModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+    
+    // Clear form
+    var agentSelect = document.querySelector('select[name="agent_id"]');
+    var profileSelect = document.querySelector('select[name="profile_name"]');
+    var buyPriceInput = document.querySelector('input[name="buy_price"]');
+    var sellPriceInput = document.querySelector('input[name="sell_price"]');
+    
+    if (agentSelect) agentSelect.value = '';
+    if (profileSelect) profileSelect.value = '';
+    if (buyPriceInput) buyPriceInput.value = '';
+    if (sellPriceInput) sellPriceInput.value = '';
+    
+    // Focus on agent
+    if (agentSelect) agentSelect.focus();
+    
+    // Change button text
+    var btn = document.querySelector('button[type="submit"]');
+    if (btn) {
+        btn.innerHTML = '<i class="fa fa-save"></i> Simpan Harga';
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-primary');
+    }
+}
+
+function hideAddPriceModal() {
+    var modal = document.getElementById('priceAddModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
 function editPrice(agentId, profileName, buyPrice, sellPrice) {
     // Scroll to form
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -222,3 +310,5 @@ function editPrice(agentId, profileName, buyPrice, sellPrice) {
     btn.classList.add('btn-warning');
 }
 </script>
+</body>
+</html>

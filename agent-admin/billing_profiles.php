@@ -212,6 +212,11 @@ if ($sessionName) {
         <div class="card">
             <div class="card-header">
                 <h3><i class="fa fa-sliders"></i> Profil Paket Billing</h3>
+                <div class="btn-group" style="margin-left: auto;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="showAddProfileModal()" title="Tambah profil baru">
+                        <i class="fa fa-plus"></i> Tambah Profil
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <div class="row mb-3">
@@ -300,74 +305,82 @@ if ($sessionName) {
                         </table>
                     </div>
                 <?php endif; ?>
-
-                <div class="profile-form-placeholder">
-                    <h4 style="margin-top:0;"><i class="fa fa-plus-circle"></i> Tambah Profil Billing</h4>
-                    <p style="margin-bottom: 10px;">Gunakan formulir berikut untuk menambahkan paket langganan baru. Daftar profil MikroTik otomatis diambil dari router aktif.</p>
-                    <form data-api-form data-api-endpoint="./billing/profiles.php" data-success-reload="true">
-                        <input type="hidden" name="action" value="create">
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="profile_name">Nama Profil</label>
-                                    <input type="text" id="profile_name" name="profile_name" class="form-control" placeholder="Contoh: Paket Rumah 30 Mbps" required>
-                                </div>
-                            </div>
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="price_monthly">Harga Bulanan (Rp)</label>
-                                    <input type="number" id="price_monthly" name="price_monthly" class="form-control" min="0" step="1000" required>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="mikrotik_profile_normal">Profil MikroTik Normal</label>
-                                    <select id="mikrotik_profile_normal" name="mikrotik_profile_normal" class="form-control" required>
-                                        <option value="">-- pilih profil PPP normal --</option>
-<?php foreach ($mikrotikProfiles as $pppProfile): ?>
-                                        <option value="<?= htmlspecialchars($pppProfile); ?>"><?= htmlspecialchars($pppProfile); ?></option>
-<?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="mikrotik_profile_isolation">Profil MikroTik Isolasi</label>
-                                    <select id="mikrotik_profile_isolation" name="mikrotik_profile_isolation" class="form-control" required>
-                                        <option value="">-- pilih profil isolasi --</option>
-<?php foreach ($mikrotikIsolationProfiles as $isolationProfile): ?>
-                                        <option value="<?= htmlspecialchars($isolationProfile); ?>"><?= htmlspecialchars($isolationProfile); ?></option>
-<?php endforeach; ?>
-<?php if (empty($mikrotikIsolationProfiles)): ?>
-                                        <option value="ISOLIR">ISOLIR (fallback)</option>
-<?php endif; ?>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="speed_label">Label Kecepatan</label>
-                                    <input type="text" id="speed_label" name="speed_label" class="form-control" placeholder="Contoh: 30 Mbps">
-                                </div>
-                            </div>
-                            <div class="col-6 col-box-12">
-                                <div class="form-group">
-                                    <label for="description">Catatan/Deskripsi</label>
-                                    <input type="text" id="description" name="description" class="form-control" placeholder="Opsional">
-                                </div>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fa fa-save"></i> Simpan Profil
-                        </button>
-                    </form>
-                </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Modal Tambah Profil -->
+<div id="profileAddModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background:white;width:80%;max-width:800px;margin:50px auto;padding:20px;border-radius:10px;max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;"><i class="fa fa-plus-circle"></i> Tambah Profil Billing Baru</h3>
+            <button type="button" onclick="hideAddProfileModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form data-api-form data-api-endpoint="./billing/profiles.php" data-success-reload="true">
+            <input type="hidden" name="action" value="create">
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_profile_name">Nama Profil</label>
+                        <input type="text" id="modal_profile_name" name="profile_name" class="form-control" placeholder="Contoh: Paket Rumah 30 Mbps" required>
+                    </div>
+                </div>
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_price_monthly">Harga Bulanan (Rp)</label>
+                        <input type="number" id="modal_price_monthly" name="price_monthly" class="form-control" min="0" step="1000" required>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_mikrotik_profile_normal">Profil MikroTik Normal</label>
+                        <select id="modal_mikrotik_profile_normal" name="mikrotik_profile_normal" class="form-control" required>
+                            <option value="">-- pilih profil PPP normal --</option>
+<?php foreach ($mikrotikProfiles as $pppProfile): ?>
+                            <option value="<?= htmlspecialchars($pppProfile); ?>"><?= htmlspecialchars($pppProfile); ?></option>
+<?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_mikrotik_profile_isolation">Profil MikroTik Isolasi</label>
+                        <select id="modal_mikrotik_profile_isolation" name="mikrotik_profile_isolation" class="form-control" required>
+                            <option value="">-- pilih profil isolasi --</option>
+<?php foreach ($mikrotikIsolationProfiles as $isolationProfile): ?>
+                            <option value="<?= htmlspecialchars($isolationProfile); ?>"><?= htmlspecialchars($isolationProfile); ?></option>
+<?php endforeach; ?>
+<?php if (empty($mikrotikIsolationProfiles)): ?>
+                            <option value="ISOLIR">ISOLIR (fallback)</option>
+<?php endif; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_speed_label">Label Kecepatan</label>
+                        <input type="text" id="modal_speed_label" name="speed_label" class="form-control" placeholder="Contoh: 30 Mbps">
+                    </div>
+                </div>
+                <div class="col-6 col-box-12">
+                    <div class="form-group">
+                        <label for="modal_description">Catatan/Deskripsi</label>
+                        <input type="text" id="modal_description" name="description" class="form-control" placeholder="Opsional">
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideAddProfileModal()">Batal</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa fa-save"></i> Simpan Profil
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -490,5 +503,14 @@ function deleteProfile(id) {
         });
     }
 }
+
+function showAddProfileModal() {
+    document.getElementById('profileAddModal').style.display = 'block';
+}
+
+function hideAddProfileModal() {
+    document.getElementById('profileAddModal').style.display = 'none';
+}
+
 </script>
 </div>

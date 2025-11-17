@@ -32,7 +32,33 @@ if (!isset($_SESSION["mikhmon"])) {
 	// Save current profile to session for redirect purposes
 	$_SESSION['ppp_profile'] = $prof;
 
-	if ($prof == "all") {
+	// Check if offline filter is requested
+	$filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+
+	if ($filter == "offline") {
+		// Get all secrets
+		$allsecrets = $API->comm("/ppp/secret/print");
+		
+		// Get active PPP connections
+		$activeppp = $API->comm("/ppp/active/print");
+		
+		// Create array of active user names
+		$activeUsers = array();
+		foreach ($activeppp as $active) {
+			$activeUsers[] = $active['name'];
+		}
+		
+		// Filter secrets to only show offline users
+		$getsecret = array();
+		foreach ($allsecrets as $secret) {
+			if (!in_array($secret['name'], $activeUsers)) {
+				$getsecret[] = $secret;
+			}
+		}
+		
+		$TotalReg = count($getsecret);
+		$countsecret = $TotalReg;
+	} elseif ($prof == "all") {
 		$getsecret = $API->comm("/ppp/secret/print");
 		$TotalReg = count($getsecret);
 
@@ -89,6 +115,11 @@ if (!isset($_SESSION["mikhmon"])) {
 				<h3><i class=" fa fa-pie-chart"></i> PPP Secrets
 					&nbsp; | &nbsp; <a href="./?ppp=addsecret&session=<?= $session; ?>" title="Add Secrets"><i class="fa fa-user-plus"></i> Add</a>
 				</h3>
+				<?php if ($filter == "offline"): ?>
+				<div class="alert alert-info" style="margin-top: 10px; padding: 5px 10px;">
+					<i class="fa fa-info-circle"></i> Menampilkan hanya user PPP yang sedang offline
+				</div>
+				<?php endif; ?>
 			</div>
 			<!-- /.card-header -->
 			<div class="card-body">

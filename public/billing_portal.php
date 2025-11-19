@@ -9,6 +9,7 @@ date_default_timezone_set('Asia/Jakarta');
 
 require_once(__DIR__ . '/../include/db_config.php');
 require_once(__DIR__ . '/../lib/BillingService.class.php');
+require_once(__DIR__ . '/../lib/PublicPayment.class.php');
 
 if (!isset($_SESSION['billing_portal_customer_id']) || (int)$_SESSION['billing_portal_customer_id'] <= 0) {
     header('Location: billing_login.php');
@@ -20,6 +21,11 @@ $activeCustomerId = (int)$_SESSION['billing_portal_customer_id'];
 $wifiFeedback = [
     'ssid' => ['error' => null, 'success' => null],
     'password' => ['error' => null, 'success' => null],
+];
+
+$paymentFeedback = [
+    'error' => null,
+    'success' => null,
 ];
 
 try {
@@ -41,6 +47,31 @@ try {
         return $carry + $amount;
     }, 0.0);
     $deviceSnapshot = $billingService->getCustomerDeviceSnapshot((int)$customer['id']);
+
+    // Handle payment request
+    if (isset($_POST['pay_invoice'])) {
+        $invoiceId = (int)($_POST['invoice_id'] ?? 0);
+        
+        if ($invoiceId > 0) {
+            // Verify invoice belongs to customer
+            $invoice = $billingService->getInvoiceById($invoiceId);
+            if ($invoice && (int)$invoice['customer_id'] === (int)$customer['id']) {
+                // Check if invoice is unpaid
+                if (in_array($invoice['status'], ['unpaid', 'overdue'])) {
+                    // Redirect to payment selection page
+                    $_SESSION['billing_payment_invoice'] = $invoice;
+                    header('Location: billing_payment.php');
+                    exit;
+                } else {
+                    $paymentFeedback['error'] = 'Invoice ini sudah dibayar.';
+                }
+            } else {
+                $paymentFeedback['error'] = 'Invoice tidak ditemukan atau bukan milik Anda.';
+            }
+        } else {
+            $paymentFeedback['error'] = 'Parameter tidak valid.';
+        }
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['change_ssid'])) {
@@ -175,6 +206,19 @@ if (file_exists(__DIR__ . '/../include/theme.php')) {
         .device-stat .value.small { font-size: 16px; }
         .device-status.offline { color: #991b1b; }
         .device-status.online { color: #047857; }
+        .btn-success {
+            background: #00a65a;
+            border-color: #008d4c;
+            color: #fff;
+        }
+        .btn-success:hover {
+            background: #008d4c;
+            border-color: #00733e;
+        }
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
         @media (max-width: 520px) {
             .device-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
@@ -200,7 +244,7 @@ if (file_exists(__DIR__ . '/../include/theme.php')) {
                 <div class="box" style="background:#3c8dbc;">
                     <h2><?= htmlspecialchars($profile['profile_name'] ?? 'Tidak diketahui'); ?></h2>
                     <p style="margin:0;">Harga: Rp <?= number_format($profile['price_monthly'] ?? 0, 0, ',', '.'); ?>/bulan</p>
-                    <p style="margin:0;">Billing setiap tanggal <?= str_pad((int)$customer['billing_day'], 2, '0', STR_PAD_LEFT); ?></p>
+                    <p style="margin:0;">Isolasi otomatis tanggal <?= str_pad((int)$customer['billing_day'], 2, '0', STR_PAD_LEFT); ?> setiap bulan</p>
                 </div>
                 <div class="box" style="background:#00a65a;">
                     <h2><?= count($outstanding); ?></h2>
@@ -295,12 +339,13 @@ if (file_exists(__DIR__ . '/../include/theme.php')) {
                             <th>Jatuh Tempo</th>
                             <th>Status</th>
                             <th>Dibayar</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($invoices)): ?>
                             <tr>
-                                <td colspan="5" style="text-align:center; padding: 20px; color:#6b7280;">
+                                <td colspan="6" style="text-align:center; padding: 20px; color:#6b7280;">
                                     Belum ada invoice yang tercatat.
                                 </td>
                             </tr>
@@ -313,6 +358,18 @@ if (file_exists(__DIR__ . '/../include/theme.php')) {
                                     <td><?= date('d M Y', strtotime($invoice['due_date'])); ?></td>
                                     <td><span class="badge-status <?= $status; ?>"><?= ucfirst($status); ?></span></td>
                                     <td><?= $invoice['paid_at'] ? date('d M Y H:i', strtotime($invoice['paid_at'])) : '-'; ?></td>
+                                    <td>
+                                        <?php if (in_array($status, ['unpaid', 'overdue'])): ?>
+                                            <form method="post" style="display: inline;">
+                                                <input type="hidden" name="invoice_id" value="<?= (int)$invoice['id']; ?>">
+                                                <button type="submit" name="pay_invoice" class="btn btn-success btn-sm">
+                                                    <i class="fa fa-credit-card"></i> Bayar
+                                                </button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span>-</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>

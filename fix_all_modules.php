@@ -25,6 +25,10 @@ try {
     exit("Gagal konek database: " . $e->getMessage() . "\n");
 }
 
+if (!$pdo) {
+    exit("Gagal konek database: getDBConnection returned false.\n");
+}
+
 /** @var PDO $pdo */
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -221,6 +225,66 @@ CREATE TABLE `agent_transactions` (
   CONSTRAINT `fk_agent_transactions_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE,
   INDEX `idx_agent_date` (`agent_id`, `created_at`),
   INDEX `idx_reference` (`reference_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL,
+    'agent_vouchers' => <<<SQL
+CREATE TABLE `agent_vouchers` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agent_id` INT NOT NULL,
+  `transaction_id` INT DEFAULT NULL,
+  `username` VARCHAR(100) NOT NULL,
+  `password` VARCHAR(100) NOT NULL,
+  `profile_name` VARCHAR(100) NOT NULL,
+  `buy_price` DECIMAL(15,2) NOT NULL,
+  `sell_price` DECIMAL(15,2) DEFAULT NULL,
+  `status` ENUM('active','used','expired','deleted') DEFAULT 'active',
+  `customer_phone` VARCHAR(20) DEFAULT NULL,
+  `customer_name` VARCHAR(100) DEFAULT NULL,
+  `sent_via` ENUM('web','whatsapp','manual') DEFAULT 'web',
+  `sent_at` TIMESTAMP NULL DEFAULT NULL,
+  `used_at` TIMESTAMP NULL DEFAULT NULL,
+  `expired_at` TIMESTAMP NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `notes` TEXT DEFAULT NULL,
+  CONSTRAINT `fk_agent_vouchers_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE,
+  INDEX `idx_agent_id` (`agent_id`),
+  INDEX `idx_transaction_id` (`transaction_id`),
+  INDEX `idx_username` (`username`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_customer_phone` (`customer_phone`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL,
+    'agent_commissions' => <<<SQL
+CREATE TABLE `agent_commissions` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agent_id` INT NOT NULL,
+  `voucher_id` INT UNSIGNED DEFAULT NULL,
+  `commission_amount` DECIMAL(15,2) NOT NULL,
+  `commission_percent` DECIMAL(5,2) NOT NULL,
+  `voucher_price` DECIMAL(15,2) NOT NULL,
+  `status` ENUM('pending','paid','cancelled') DEFAULT 'pending',
+  `earned_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `paid_at` TIMESTAMP NULL DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  CONSTRAINT `fk_agent_commissions_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE,
+  INDEX `idx_agent_id` (`agent_id`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_voucher_id` (`voucher_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL,
+    'agent_billing_payments' => <<<SQL
+CREATE TABLE `agent_billing_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agent_id` INT NOT NULL,
+  `invoice_id` BIGINT UNSIGNED NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL,
+  `fee` DECIMAL(15,2) DEFAULT 0.00,
+  `status` ENUM('paid','refunded') DEFAULT 'paid',
+  `processed_by` VARCHAR(50) DEFAULT 'system',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_agent_billing_payments_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE,
+  INDEX `idx_agent_id` (`agent_id`),
+  INDEX `idx_invoice_id` (`invoice_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL,
     'payment_gateway_config' => <<<SQL

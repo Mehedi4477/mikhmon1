@@ -398,7 +398,7 @@ class WhatsAppNotification {
     /**
      * Notify agent about successful Digiflazz transaction
      */
-    public function notifyDigiflazzSuccess($agentId, array $transactionData, $balanceAfter = null) {
+    public function notifyDigiflazzSuccess($agentId, array $transactionData, $balanceAfter = null, $digiflazzBalance = null) {
         $agent = $this->getAgent($agentId);
         if (!$agent) {
             return false;
@@ -442,11 +442,37 @@ class WhatsAppNotification {
 
         $balanceValue = ($balanceAfter !== null) ? $balanceAfter : $agent['balance'];
         $content .= "\n━━━━━━━━━━━━━━━━━━━━\n";
+        
+        // Show Digiflazz balance only for admin numbers
+        if ($digiflazzBalance !== null && $digiflazzBalance > 0 && $this->isAdminNumber($agent['phone'])) {
+            $content .= "💰 Saldo Digiflazz: Rp " . number_format($digiflazzBalance, 0, ',', '.') . "\n";
+        }
+        
         $content .= "Saldo tersisa: Rp " . number_format($balanceValue, 0, ',', '.');
 
         $messageFormatted = $this->formatMessage($content);
         $result = $this->sendMessage($agent['phone'], $messageFormatted);
         return $this->normalizeResult($result);
+    }
+    
+    /**
+     * Check if phone number is an admin number
+     */
+    private function isAdminNumber($phone) {
+        $adminNumbers = $this->getAdminNumbers();
+        if (empty($adminNumbers)) {
+            return false;
+        }
+        
+        // Normalize phone numbers for comparison
+        $normalizedPhone = trim($phone);
+        foreach ($adminNumbers as $adminPhone) {
+            if (trim($adminPhone) === $normalizedPhone) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /**

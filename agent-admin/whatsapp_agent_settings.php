@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
             $numbersString = implode(',', $validNumbers);
             
             $stmt = $db->prepare("
-                INSERT INTO agent_settings (setting_key, setting_value, setting_type, description, updated_by) 
-                VALUES ('admin_whatsapp_numbers', ?, 'string', 'Admin WhatsApp numbers', 'admin')
+                INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by) 
+                VALUES (1, 'admin_whatsapp_numbers', ?, 'string', 'Admin WhatsApp numbers', 'admin')
                 ON DUPLICATE KEY UPDATE setting_value = ?, updated_by = 'admin'
             ");
             $stmt->execute([$numbersString, $numbersString]);
@@ -53,8 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         
         foreach ($settings as $key => $value) {
             $stmt = $db->prepare("
-                INSERT INTO agent_settings (setting_key, setting_value, setting_type, description, updated_by) 
-                VALUES (?, ?, 'string', 'WhatsApp message setting', 'admin')
+                INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by) 
+                VALUES (1, ?, ?, 'string', 'WhatsApp message setting', 'admin')
                 ON DUPLICATE KEY UPDATE setting_value = ?, updated_by = 'admin'
             ");
             $stmt->execute([$key, $value, $value]);

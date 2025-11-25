@@ -15,8 +15,8 @@ $info = '';
 // Helper untuk menyimpan setting
 function saveSetting(PDO $db, string $key, $value, string $type = 'string', string $description = ''): void {
     $stmt = $db->prepare("
-        INSERT INTO agent_settings (setting_key, setting_value, setting_type, description, updated_by)
-        VALUES (:key, :value, :type, :description, 'admin')
+        INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by)
+        VALUES (1, :key, :value, :type, :description, 'admin')
         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = 'admin'
     ");
     $stmt->execute([
@@ -142,7 +142,34 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
 
 ?>
 
-
+<style>
+.summary-box {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+.summary-card {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #e1e1e1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.summary-card h4 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+.summary-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #3c8dbc;
+}
+.card + .card {
+    margin-top: 20px;
+}
+</style>
 
 <div class="row">
 <div class="col-12">
@@ -169,9 +196,9 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
                     <h1 style="font-size:24px;"><?= $statusLabel; ?></h1>
                     <div><i class="fa fa-plug"></i> Status Integrasi</div>
                     <div style="font-size:12px;margin-top:5px;">Username: <strong><?= htmlspecialchars($settings['digiflazz_username']); ?></strong></div>
+                    <div style="font-size:12px;">Testing: <?= $allowTest ? 'Diizinkan' : 'Non-Aktif'; ?></div>
                 </div>
             </div>
-
             <div class="col-3 col-box-6">
                 <div class="box bg-blue bmh-75">
                     <h1><?= number_format($productStats['total']); ?>
@@ -181,15 +208,15 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
                     <div style="font-size:12px;margin-top:5px;">Aktif: <?= number_format($productStats['active']); ?> | Non-aktif: <?= number_format($productStats['inactive']); ?></div>
                 </div>
             </div>
-
             <div class="col-3 col-box-6">
                 <div class="box bg-yellow bmh-75">
                     <h1>Rp <?= number_format((int)$settings['digiflazz_default_markup_nominal'], 0, ',', '.'); ?>
+                        <span style="font-size:15px;">markup</span>
                     </h1>
                     <div><i class="fa fa-tag"></i> Markup Default</div>
+                    <div style="font-size:12px;margin-top:5px;">Ditambahkan ke harga dasar produk.</div>
                 </div>
             </div>
-
             <div class="col-3 col-box-6">
                 <div class="box bg-aqua bmh-75">
                     <h1 style="font-size:18px;"><?= $lastSync; ?></h1>
@@ -233,25 +260,6 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
                                 <input type="number" min="0" step="50" name="digiflazz_default_markup_nominal" class="form-control" value="<?= (int)$settings['digiflazz_default_markup_nominal']; ?>">
                                 <div class="help-text">Nilai nominal yang ditambahkan ke harga dasar saat ditampilkan ke agent/public.</div>
                             </div>
-                            
-                            <?php
-                            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-                            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                            $webhookUrl = $protocol . "://" . $host . "/api/digiflazz_webhook.php";
-                            ?>
-                            <div class="form-group">
-                                <label>Webhook URL</label>
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" value="<?= $webhookUrl; ?>" id="webhookUrl" readonly>
-                                    <div class="input-group-append">
-                                        <button type="button" class="btn btn-default" onclick="copyWebhookUrl()" title="Salin URL">
-                                            <i class="fa fa-copy"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="help-text">Salin URL ini dan masukkan ke pengaturan webhook di dashboard Digiflazz.</div>
-                            </div>
-
                             <div class="form-group">
                                 <label>Webhook Secret</label>
                                 <input type="text" name="digiflazz_webhook_secret" class="form-control" value="<?= htmlspecialchars($settings['digiflazz_webhook_secret']); ?>" autocomplete="off">
@@ -341,14 +349,5 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
         <?php endif; ?>
     </div>
 </div>
-
-<script>
-function copyWebhookUrl() {
-    var copyText = document.getElementById("webhookUrl");
-    copyText.select();
-    copyText.setSelectionRange(0, 99999); /* For mobile devices */
-    document.execCommand("copy");
-    alert("Webhook URL berhasil disalin: " + copyText.value);
-}
-</script>
+</div>
 </div>

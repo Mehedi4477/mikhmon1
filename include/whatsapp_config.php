@@ -6,11 +6,11 @@
 
 // ===== KONFIGURASI WHATSAPP GATEWAY =====
 // Pilih gateway yang Anda gunakan: 'fonnte', 'wablas', 'woowa', 'custom', 'selfhosted'
-define('WHATSAPP_GATEWAY', 'mpwa');
+define('WHATSAPP_GATEWAY', 'fonnte');
 
 // Konfigurasi untuk Fonnte.com
 define('FONNTE_API_URL', 'https://api.fonnte.com/send');
-define('FONNTE_TOKEN', 'wik2cbw4NaURsKqycqL6');
+define('FONNTE_TOKEN', 'wik2cbw4NaURsKqxxxxx');
 
 // Konfigurasi untuk Wablas.com
 define('WABLAS_API_URL', 'https://DOMAIN_ANDA.wablas.com/api/send-message');
@@ -22,7 +22,7 @@ define('WOOWA_TOKEN', 'TOKEN_WOOWA_ANDA');
 
 // Konfigurasi MPWA (M-Pedia WhatsApp Gateway)
 define('MPWA_API_URL', 'https://wa.alijaya.net/send-message');
-define('MPWA_TOKEN', 'JPweqBKzCUX6MqHAIZN9iXK6Y1B9qD');
+define('MPWA_TOKEN', 'JPweqBKzCUX6MqHAIZNxxxxxxx');
 define('MPWA_SENDER', '6287820851413'); // Nomor WA yang terdaftar di MPWA
 
 // Konfigurasi Custom (sesuaikan dengan gateway Anda)

@@ -1,0 +1,89 @@
+[19-Nov-2025 06:24:16 UTC] GenieACS API Request: GET http://192.168.8.89:7557/devices/
+[19-Nov-2025 06:24:16 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:24:18 UTC] GenieACS API Response HTTP Code: 0 from http://192.168.8.89:7557/devices/
+[19-Nov-2025 06:24:18 UTC] GenieACS API Response Error: Connection timed out after 2002 milliseconds from http://192.168.8.89:7557/devices/
+[19-Nov-2025 06:24:18 UTC] GenieACS API Request: GET http://192.168.8.89:80/devices/
+[19-Nov-2025 06:24:18 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:24:20 UTC] GenieACS API Response HTTP Code: 0 from http://192.168.8.89:80/devices/
+[19-Nov-2025 06:24:20 UTC] GenieACS API Response Error: Connection timed out after 2001 milliseconds from http://192.168.8.89:80/devices/
+[19-Nov-2025 06:24:20 UTC] GenieACS API Request: GET http://192.168.8.89:8080/devices/
+[19-Nov-2025 06:24:20 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:24:22 UTC] GenieACS API Response HTTP Code: 0 from http://192.168.8.89:8080/devices/
+[19-Nov-2025 06:24:22 UTC] GenieACS API Response Error: Connection timed out after 2002 milliseconds from http://192.168.8.89:8080/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:04 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 4446 after 12 ms: Could not connect to server from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Request: GET http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:04 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 80 after 10 ms: Could not connect to server from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Request: GET http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:25:04 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:05 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:18 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 4446 after 3 ms: Could not connect to server from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Request: GET http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:18 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 80 after 4 ms: Could not connect to server from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Request: GET http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:25:18 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:19 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:46 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 4446 after 3 ms: Could not connect to server from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Request: GET http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:46 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 80 after 3 ms: Could not connect to server from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Request: GET http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:25:46 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:25:46 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:26:31 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 4446 after 4 ms: Could not connect to server from http://103.175.238.126:4446/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Request: GET http://103.175.238.126:80/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:26:31 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 80 after 3 ms: Could not connect to server from http://103.175.238.126:80/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Request: GET http://103.175.238.126:7557/devices/
+[19-Nov-2025 06:26:31 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 06:26:32 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:7557/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 09:45:49 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:4446/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 4446 after 3 ms: Could not connect to server from http://103.175.238.126:4446/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Request: GET http://103.175.238.126:80/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 09:45:49 UTC] GenieACS API Response HTTP Code: 0 from http://103.175.238.126:80/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Response Error: Failed to connect to 103.175.238.126 port 80 after 2 ms: Could not connect to server from http://103.175.238.126:80/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Request: GET http://103.175.238.126:7557/devices/
+[19-Nov-2025 09:45:49 UTC] GenieACS API Authentication: Enabled for user alijaya
+[19-Nov-2025 09:45:50 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:7557/devices/
+[20-Nov-2025 08:54:39 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[20-Nov-2025 08:54:39 UTC] GenieACS API Authentication: Enabled for user alijaya
+[20-Nov-2025 08:54:40 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/
+[22-Nov-2025 07:07:40 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[22-Nov-2025 07:07:40 UTC] GenieACS API Authentication: Enabled for user alijaya
+[22-Nov-2025 07:07:41 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/
+[22-Nov-2025 07:10:37 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/?query=%7B%22_id%22%3A%22442295-GM220%252DS-CIOT131186E0%22%7D
+[22-Nov-2025 07:10:37 UTC] GenieACS API Authentication: Enabled for user alijaya
+[22-Nov-2025 07:10:37 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/?query=%7B%22_id%22%3A%22442295-GM220%252DS-CIOT131186E0%22%7D
+[22-Nov-2025 07:16:05 UTC] GenieACS API Request: POST http://103.175.238.126:4446/devices/442295-GM220%252DS-CIOT131186E0/tasks?connection_request
+[22-Nov-2025 07:16:05 UTC] GenieACS API Authentication: Enabled for user alijaya
+[22-Nov-2025 07:16:05 UTC] GenieACS API Request Data: {"name":"setParameterValues","parameterValues":[["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID","Pasang Wifi Gratis test","xsd:string"]]}
+[22-Nov-2025 07:16:07 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/442295-GM220%252DS-CIOT131186E0/tasks?connection_request
+[22-Nov-2025 07:16:10 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[22-Nov-2025 07:16:10 UTC] GenieACS API Authentication: Enabled for user alijaya
+[22-Nov-2025 07:16:10 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/
+[24-Nov-2025 00:42:14 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[24-Nov-2025 00:42:14 UTC] GenieACS API Authentication: Enabled for user alijaya
+[24-Nov-2025 00:42:15 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/
+[24-Nov-2025 05:19:07 UTC] GenieACS API Request: GET http://103.175.238.126:4446/devices/
+[24-Nov-2025 05:19:07 UTC] GenieACS API Authentication: Enabled for user alijaya
+[24-Nov-2025 05:19:08 UTC] GenieACS API Response HTTP Code: 200 from http://103.175.238.126:4446/devices/

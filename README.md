@@ -140,10 +140,16 @@ graph TB
 
 4. **Run Installer** <br>
 
-coppy paste link ini ke browser<br> http://ganti_dengan_domain_anda/fix_all_modules.php?key=fix-all-2024
-
+coppy paste link ini ke browser<br> 
+```
+http://ganti_dengan_domain_anda/fix_all_modules.php?key=fix-all-2024
+```
 ### Konfigurasi Tambahan Cronjob
-coppy paste link ini ke browser<br> http://ganti_dengan_domain_anda/check_cron_path.php <br>
+coppy paste link ini ke browser<br> 
+```
+http://ganti_dengan_domain_anda/check_cron_path.php
+```
+
 pilih coppy command dan masukan ke cronjob supaya tagihan akan di generate setiap tanggal 1 tiap bulan
 
 #### WhatsApp Integration
@@ -207,6 +213,7 @@ Project Link: [https://github.com/alijayanet/mikhmon-agent](https://github.com/a
   Made with ❤️ by Ali Jaya Net
 
 </p>
+
 
 
 

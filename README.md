@@ -142,7 +142,9 @@ graph TB
 
 coppy paste link ini ke browser<br> http://ganti_dengan_domain_anda/fix_all_modules.php?key=fix-all-2024
 
-### Konfigurasi Tambahan
+### Konfigurasi Tambahan Cronjob
+coppy paste link ini ke browser<br> http://ganti_dengan_domain_anda/check_cron_path.php
+pilih coppy command dan masukan ke cronjob supaya tagihan akan di generate setiap tanggal 1 tiap bulan
 
 #### WhatsApp Integration
 1. Setup webhook di gateway WhatsApp (Fonnte/Wablas/WooWA)
@@ -205,6 +207,7 @@ Project Link: [https://github.com/alijayanet/mikhmon-agent](https://github.com/a
   Made with ❤️ by Ali Jaya Net
 
 </p>
+
 
 
 

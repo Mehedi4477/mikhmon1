@@ -86,6 +86,13 @@ function computeDueDate(DateTime $reference, int $billingDay): DateTime
 
 function generateMonthlyInvoices(BillingService $service, DateTime $today): void
 {
+    // Only generate invoices on the 1st of the month
+    $dayOfMonth = (int)$today->format('d');
+    if ($dayOfMonth !== 1) {
+        logMessage('Skipping invoice generation (not the 1st of the month)');
+        return;
+    }
+
     $period = $today->format('Y-m');
     $customers = $service->getActiveCustomersWithProfile();
 
@@ -95,6 +102,7 @@ function generateMonthlyInvoices(BillingService $service, DateTime $today): void
             continue;
         }
 
+        // Due date follows customer's billing_day
         $dueDate = computeDueDate($today, (int)$customer['billing_day']);
 
         $invoiceId = $service->generateInvoice(
@@ -113,9 +121,10 @@ function generateMonthlyInvoices(BillingService $service, DateTime $today): void
         $service->logEvent((int)$customer['id'], $invoiceId, 'invoice_generated', [
             'period' => $period,
             'due_date' => $dueDate->format('Y-m-d'),
+            'billing_day' => (int)$customer['billing_day'],
         ]);
 
-        logMessage("Generated invoice {$invoiceId} for customer {$customer['id']} (period {$period})");
+        logMessage("Generated invoice {$invoiceId} for customer {$customer['id']} (period {$period}, due date {$dueDate->format('Y-m-d')})");
     }
 }
 

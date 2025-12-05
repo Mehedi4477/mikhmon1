@@ -1332,37 +1332,6 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 $stmt->execute(['telegram_webhook_mode', $telegramWebhookMode, $telegramWebhookMode]);
                                 $stmt->execute(['telegram_admin_chat_ids', $telegramAdminChatIds, $telegramAdminChatIds]);
                                 
-                                // Update config file
-                                $configFile = 'include/telegram_config.php';
-                                if (file_exists($configFile)) {
-                                    $configContent = file_get_contents($configFile);
-                                    
-                                    // Update bot token
-                                    $configContent = preg_replace(
-                                        "/define\('TELEGRAM_BOT_TOKEN', '.*?'\);/",
-                                        "define('TELEGRAM_BOT_TOKEN', '$telegramBotToken');",
-                                        $configContent
-                                    );
-                                    
-                                    // Update enabled status
-                                    $enabledValue = $telegramEnabled == '1' ? 'true' : 'false';
-                                    $configContent = preg_replace(
-                                        "/define\('TELEGRAM_ENABLED', .*?\);/",
-                                        "define('TELEGRAM_ENABLED', $enabledValue);",
-                                        $configContent
-                                    );
-                                    
-                                    // Update webhook mode
-                                    $webhookValue = $telegramWebhookMode == '1' ? 'true' : 'false';
-                                    $configContent = preg_replace(
-                                        "/define\('TELEGRAM_WEBHOOK_MODE', .*?\);/",
-                                        "define('TELEGRAM_WEBHOOK_MODE', $webhookValue);",
-                                        $configContent
-                                    );
-                                    
-                                    file_put_contents($configFile, $configContent);
-                                }
-                                
                                 logMessage('✅ Telegram bot configured successfully!', 'success');
                                 echo '<div class="alert alert-success" style="margin-bottom: 20px;">
                                     <i class="fas fa-check-circle"></i>

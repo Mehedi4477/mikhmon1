@@ -2,12 +2,32 @@
 /*
  * Telegram Bot Integration for MikhMon
  * Telegram Bot API Configuration
+ * 
+ * DYNAMIC CONFIGURATION - Values loaded from database
+ * No need to edit this file manually!
  */
 
-// ===== KONFIGURASI TELEGRAM BOT =====
-define('TELEGRAM_BOT_TOKEN', ''); // Dari @BotFather - isi setelah membuat bot
-define('TELEGRAM_ENABLED', false); // Set true setelah konfigurasi selesai
-define('TELEGRAM_WEBHOOK_MODE', true); // true = webhook (butuh HTTPS), false = long polling
+// Load database connection
+require_once(__DIR__ . '/db_config.php');
+
+// Load Telegram settings from database
+$telegram_config = [];
+try {
+    $db = getDBConnection();
+    if ($db) {
+        $stmt = $db->query("SELECT setting_key, setting_value FROM telegram_settings");
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $telegram_config[$row['setting_key']] = $row['setting_value'];
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error loading Telegram config: " . $e->getMessage());
+}
+
+// Define constants from database values (with defaults)
+define('TELEGRAM_BOT_TOKEN', $telegram_config['telegram_bot_token'] ?? '');
+define('TELEGRAM_ENABLED', ($telegram_config['telegram_enabled'] ?? '0') == '1');
+define('TELEGRAM_WEBHOOK_MODE', ($telegram_config['telegram_webhook_mode'] ?? '1') == '1');
 
 // Telegram API URLs
 define('TELEGRAM_API_URL', 'https://api.telegram.org/bot' . TELEGRAM_BOT_TOKEN);
@@ -23,11 +43,21 @@ define('TELEGRAM_WEBHOOK_URL', 'https://yourdomain.com/api/telegram_webhook.php'
  * @return array Response with success status
  */
 function sendTelegramMessage($chatId, $message, $parseMode = 'Markdown') {
+    // Debug log
+    $debugLog = __DIR__ . '/../logs/telegram_send_debug.log';
+    $logDir = dirname($debugLog);
+    if (!file_exists($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+    file_put_contents($debugLog, date('Y-m-d H:i:s') . " | Attempting to send to $chatId: " . substr($message, 0, 50) . "...\n", FILE_APPEND);
+    
     if (!TELEGRAM_ENABLED) {
+        file_put_contents($debugLog, date('Y-m-d H:i:s') . " | ERROR: Telegram disabled\n", FILE_APPEND);
         return ['success' => false, 'message' => 'Telegram disabled'];
     }
     
     if (empty(TELEGRAM_BOT_TOKEN)) {
+        file_put_contents($debugLog, date('Y-m-d H:i:s') . " | ERROR: Bot token empty\n", FILE_APPEND);
         return ['success' => false, 'message' => 'Telegram bot token not configured'];
     }
     
@@ -42,19 +72,25 @@ function sendTelegramMessage($chatId, $message, $parseMode = 'Markdown') {
         $data['parse_mode'] = $parseMode;
     }
     
+    file_put_contents($debugLog, date('Y-m-d H:i:s') . " | Sending to URL: $url\n", FILE_APPEND);
+    
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $error = curl_error($ch);
     curl_close($ch);
     
+    file_put_contents($debugLog, date('Y-m-d H:i:s') . " | HTTP Code: $httpCode | Response: $response\n", FILE_APPEND);
+    
     if ($error) {
+        file_put_contents($debugLog, date('Y-m-d H:i:s') . " | cURL Error: $error\n", FILE_APPEND);
         return [
             'success' => false,
             'message' => 'Connection error: ' . $error
@@ -62,8 +98,11 @@ function sendTelegramMessage($chatId, $message, $parseMode = 'Markdown') {
     }
     
     $result = json_decode($response, true);
+    $success = ($httpCode == 200 && isset($result['ok']) && $result['ok']);
+    file_put_contents($debugLog, date('Y-m-d H:i:s') . " | Success: " . ($success ? 'YES' : 'NO') . "\n", FILE_APPEND);
+    
     return [
-        'success' => ($httpCode == 200 && isset($result['ok']) && $result['ok']),
+        'success' => $success,
         'response' => $result,
         'message' => isset($result['description']) ? $result['description'] : 'Unknown error'
     ];

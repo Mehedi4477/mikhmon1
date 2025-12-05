@@ -1043,7 +1043,91 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                             ensureTable($pdo, $name, $ddl);
                         }
                         
+                        // === TELEGRAM INTEGRATION TABLES ===
+                        logMessage('Installing Telegram integration tables...', 'info');
+                        
+                        // Telegram Settings Table
+                        $telegramSettingsTable = "CREATE TABLE `telegram_settings` (
+                            `id` INT AUTO_INCREMENT PRIMARY KEY,
+                            `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+                            `setting_value` TEXT,
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+                        ensureTable($pdo, 'telegram_settings', $telegramSettingsTable);
+                        
+                        // Telegram Webhook Log Table
+                        $telegramWebhookLogTable = "CREATE TABLE `telegram_webhook_log` (
+                            `id` INT AUTO_INCREMENT PRIMARY KEY,
+                            `chat_id` VARCHAR(50) NOT NULL,
+                            `username` VARCHAR(100),
+                            `first_name` VARCHAR(100),
+                            `last_name` VARCHAR(100),
+                            `message` TEXT,
+                            `command` VARCHAR(50),
+                            `response` TEXT,
+                            `status` ENUM('success', 'error') DEFAULT 'success',
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            INDEX `idx_chat_id` (`chat_id`),
+                            INDEX `idx_created_at` (`created_at`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+                        ensureTable($pdo, 'telegram_webhook_log', $telegramWebhookLogTable);
+                        
+                        // Telegram User Mapping Table
+                        $telegramUserMappingTable = "CREATE TABLE `telegram_user_mapping` (
+                            `id` INT AUTO_INCREMENT PRIMARY KEY,
+                            `phone` VARCHAR(20) NOT NULL,
+                            `telegram_chat_id` VARCHAR(50) NOT NULL,
+                            `telegram_username` VARCHAR(100),
+                            `first_name` VARCHAR(100),
+                            `last_name` VARCHAR(100),
+                            `is_verified` TINYINT(1) DEFAULT 0,
+                            `verification_code` VARCHAR(10),
+                            `verification_expires` DATETIME,
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            UNIQUE KEY `unique_phone` (`phone`),
+                            UNIQUE KEY `unique_chat_id` (`telegram_chat_id`),
+                            INDEX `idx_phone` (`phone`),
+                            INDEX `idx_chat_id` (`telegram_chat_id`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+                        ensureTable($pdo, 'telegram_user_mapping', $telegramUserMappingTable);
+                        
+                        // Add Telegram columns to agents table
+                        ensureColumn($pdo, 'agents', 'telegram_chat_id', 'VARCHAR(50) NULL', 'phone');
+                        ensureColumn($pdo, 'agents', 'telegram_username', 'VARCHAR(100) NULL', 'telegram_chat_id');
+                        ensureColumn($pdo, 'agents', 'preferred_channel', "ENUM('whatsapp', 'telegram', 'both') DEFAULT 'whatsapp'", 'telegram_username');
+                        ensureIndex($pdo, 'agents', 'idx_telegram_chat_id', "INDEX `idx_telegram_chat_id` (`telegram_chat_id`)");
+                        
+                        // Add Telegram column to billing_customers table
+                        if (tableExists($pdo, 'billing_customers')) {
+                            ensureColumn($pdo, 'billing_customers', 'telegram_chat_id', 'VARCHAR(50) NULL', 'phone');
+                            ensureIndex($pdo, 'billing_customers', 'idx_telegram_chat_id', "INDEX `idx_telegram_chat_id` (`telegram_chat_id`)");
+                        }
+                        
+                        // Insert default Telegram settings
+                        try {
+                            $stmt = $pdo->prepare("INSERT IGNORE INTO `telegram_settings` (`setting_key`, `setting_value`) VALUES (?, ?)");
+                            $defaultTelegramSettings = [
+                                ['telegram_enabled', '0'],
+                                ['telegram_bot_token', ''],
+                                ['telegram_webhook_mode', '1'],
+                                ['telegram_admin_chat_ids', ''],
+                                ['telegram_welcome_message', '🤖 *Selamat datang di Bot MikhMon*\n\nKetik /help untuk melihat perintah yang tersedia.']
+                            ];
+                            
+                            foreach ($defaultTelegramSettings as $setting) {
+                                $stmt->execute($setting);
+                            }
+                            logMessage('Default Telegram settings inserted', 'success');
+                        } catch (Exception $e) {
+                            logMessage('Error inserting Telegram settings: ' . $e->getMessage(), 'error');
+                        }
+                        
+                        logMessage('Telegram integration installed successfully!', 'success');
+                        
                         // 2. Ensure Columns
+
                         ensureColumn($pdo, 'agent_profile_pricing', 'sort_order', 'INT DEFAULT 0', 'color');
                         ensureColumn($pdo, 'agent_profile_pricing', 'user_type', "ENUM('voucher','member') DEFAULT 'voucher'", 'sort_order');
                         ensureColumn($pdo, 'payment_methods', 'icon_url', 'VARCHAR(255) DEFAULT NULL', 'icon');
@@ -1208,10 +1292,170 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                     </div>
                                 </div>
                             </a>
+                            
+                            <!-- Telegram Settings -->
+                            <a href="settings/telegram_settings.php" target="_blank" style="text-decoration: none; color: inherit;">
+                                <div style="background: #fff; padding: 20px; border-radius: 12px; border: 1px solid var(--border); transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" onmouseover="this.style.borderColor='#0088cc';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='translateY(0)'">
+                                    <div style="font-weight: 700; color: #0088cc; margin-bottom: 8px; font-size: 16px;">
+                                        <i class="fab fa-telegram"></i> Telegram Settings
+                                    </div>
+                                    <div style="font-size: 13px; color: var(--text-light); line-height: 1.4;">
+                                        Konfigurasi Telegram Bot & Webhook Management.
+                                    </div>
+                                    <div style="margin-top: 10px; font-size: 12px; color: #0088cc; font-weight: 600;">
+                                        Buka Link <i class="fas fa-external-link-alt"></i>
+                                    </div>
+                                </div>
+                            </a>
                         </div>
                     </div>
                     
+                    <!-- Telegram Bot Setup (Optional) -->
+                    <div style="margin-top: 30px;">
+                        <h3 style="font-size: 18px; margin-bottom: 15px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                            <i class="fab fa-telegram"></i> Setup Telegram Bot (Opsional)
+                        </h3>
+                        
+                        <?php
+                        // Handle Telegram setup form submission
+                        if (isset($_POST['save_telegram_config'])) {
+                            try {
+                                $telegramEnabled = isset($_POST['telegram_enabled']) ? '1' : '0';
+                                $telegramBotToken = trim($_POST['telegram_bot_token']);
+                                $telegramWebhookMode = isset($_POST['telegram_webhook_mode']) ? '1' : '0';
+                                $telegramAdminChatIds = trim($_POST['telegram_admin_chat_ids']);
+                                
+                                // Update database settings
+                                $stmt = $pdo->prepare("INSERT INTO telegram_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                                $stmt->execute(['telegram_enabled', $telegramEnabled, $telegramEnabled]);
+                                $stmt->execute(['telegram_bot_token', $telegramBotToken, $telegramBotToken]);
+                                $stmt->execute(['telegram_webhook_mode', $telegramWebhookMode, $telegramWebhookMode]);
+                                $stmt->execute(['telegram_admin_chat_ids', $telegramAdminChatIds, $telegramAdminChatIds]);
+                                
+                                // Update config file
+                                $configFile = 'include/telegram_config.php';
+                                if (file_exists($configFile)) {
+                                    $configContent = file_get_contents($configFile);
+                                    
+                                    // Update bot token
+                                    $configContent = preg_replace(
+                                        "/define\('TELEGRAM_BOT_TOKEN', '.*?'\);/",
+                                        "define('TELEGRAM_BOT_TOKEN', '$telegramBotToken');",
+                                        $configContent
+                                    );
+                                    
+                                    // Update enabled status
+                                    $enabledValue = $telegramEnabled == '1' ? 'true' : 'false';
+                                    $configContent = preg_replace(
+                                        "/define\('TELEGRAM_ENABLED', .*?\);/",
+                                        "define('TELEGRAM_ENABLED', $enabledValue);",
+                                        $configContent
+                                    );
+                                    
+                                    // Update webhook mode
+                                    $webhookValue = $telegramWebhookMode == '1' ? 'true' : 'false';
+                                    $configContent = preg_replace(
+                                        "/define\('TELEGRAM_WEBHOOK_MODE', .*?\);/",
+                                        "define('TELEGRAM_WEBHOOK_MODE', $webhookValue);",
+                                        $configContent
+                                    );
+                                    
+                                    file_put_contents($configFile, $configContent);
+                                }
+                                
+                                logMessage('✅ Telegram bot configured successfully!', 'success');
+                                echo '<div class="alert alert-success" style="margin-bottom: 20px;">
+                                    <i class="fas fa-check-circle"></i>
+                                    <div><strong>Telegram Bot Configured!</strong><br>
+                                    Bot token dan settings telah disimpan. Anda bisa test bot di Telegram sekarang.</div>
+                                </div>';
+                            } catch (Exception $e) {
+                                logMessage('Error configuring Telegram: ' . $e->getMessage(), 'error');
+                                echo '<div class="alert alert-danger" style="margin-bottom: 20px;">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <div>Error: ' . htmlspecialchars($e->getMessage()) . '</div>
+                                </div>';
+                            }
+                        }
+                        ?>
+                        
+                        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                            <div style="margin-bottom: 15px;">
+                                <strong style="color: #374151;">📱 Kenapa Telegram?</strong>
+                                <ul style="margin: 10px 0 0 20px; color: #6b7280; font-size: 14px; line-height: 1.8;">
+                                    <li>✅ Gratis (tidak ada biaya per pesan)</li>
+                                    <li>✅ Setup cepat (tidak perlu approval)</li>
+                                    <li>✅ Semua fitur WhatsApp tersedia</li>
+                                    <li>✅ UI lebih baik (inline keyboards)</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <form method="POST" style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 25px;">
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <input type="checkbox" name="telegram_enabled" id="telegram_enabled" style="width: 20px; height: 20px;">
+                                    <span style="font-weight: 600; color: #374151;">Enable Telegram Bot</span>
+                                </label>
+                                <p style="margin: 8px 0 0 30px; font-size: 13px; color: #6b7280;">Aktifkan bot Telegram untuk menerima pesan dari user</p>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">
+                                    Bot Token <span style="color: #ef4444;">*</span>
+                                </label>
+                                <input type="text" name="telegram_bot_token" class="form-control" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: 'Courier New', monospace;">
+                                <p style="margin: 8px 0 0 0; font-size: 13px; color: #6b7280;">
+                                    <i class="fas fa-info-circle"></i> Dapatkan dari <strong>@BotFather</strong> di Telegram (kirim /newbot)
+                                </p>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #374151;">
+                                    Admin Chat IDs
+                                </label>
+                                <input type="text" name="telegram_admin_chat_ids" class="form-control" placeholder="123456789, 987654321" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                                <p style="margin: 8px 0 0 0; font-size: 13px; color: #6b7280;">
+                                    <i class="fas fa-info-circle"></i> Dapatkan Chat ID dari <strong>@userinfobot</strong> (pisahkan dengan koma jika lebih dari 1)
+                                </p>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <input type="checkbox" name="telegram_webhook_mode" id="telegram_webhook_mode" checked style="width: 20px; height: 20px;">
+                                    <span style="font-weight: 500; color: #374151;">Use Webhook Mode</span>
+                                </label>
+                                <p style="margin: 8px 0 0 30px; font-size: 13px; color: #6b7280;">
+                                    Webhook (butuh HTTPS) lebih efisien. Uncheck jika server belum ada SSL.
+                                </p>
+                            </div>
+                            
+                            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                                <strong style="color: #92400e; display: block; margin-bottom: 8px;">
+                                    <i class="fas fa-lightbulb"></i> Langkah Setup:
+                                </strong>
+                                <ol style="margin: 0; padding-left: 20px; color: #92400e; font-size: 13px; line-height: 1.8;">
+                                    <li>Buka Telegram → Cari <strong>@BotFather</strong></li>
+                                    <li>Kirim <code>/newbot</code> dan ikuti instruksi</li>
+                                    <li>Salin <strong>Bot Token</strong> yang diberikan</li>
+                                    <li>Paste token di form ini → Klik Save</li>
+                                    <li>Cari bot Anda di Telegram → Kirim <code>/start</code></li>
+                                    <li>Setup webhook di <code>settings/telegram_settings.php</code></li>
+                                </ol>
+                            </div>
+                            
+                            <button type="submit" name="save_telegram_config" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                                <i class="fas fa-save"></i> Save Telegram Configuration
+                            </button>
+                            
+                            <p style="margin-top: 15px; font-size: 13px; color: #6b7280; text-align: center;">
+                                <i class="fas fa-info-circle"></i> Anda bisa skip ini dan konfigurasi nanti di <strong>settings/telegram_settings.php</strong>
+                            </p>
+                        </form>
+                    </div>
+                    
                     <div style="text-align: center; margin-top: 30px;">
+
                         <a href="index.php" class="btn btn-success btn-block" style="padding: 16px; font-size: 18px;">
                             <i class="fas fa-check-double"></i> Selesai & Buka Aplikasi
                         </a>

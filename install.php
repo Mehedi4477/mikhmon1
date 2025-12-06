@@ -643,6 +643,9 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `agent_name` VARCHAR(100) NOT NULL,
                                 `email` VARCHAR(100),
                                 `phone` VARCHAR(20),
+                                `telegram_chat_id` VARCHAR(50) DEFAULT NULL,
+                                `telegram_username` VARCHAR(100) DEFAULT NULL,
+                                `preferred_channel` ENUM('whatsapp', 'telegram', 'both') DEFAULT 'whatsapp',
                                 `password` VARCHAR(255),
                                 `address` TEXT,
                                 `balance` DECIMAL(15,2) DEFAULT 0.00,
@@ -656,6 +659,7 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `notes` TEXT,
                                 UNIQUE KEY `unique_agent_code` (`agent_code`),
                                 KEY `idx_agent_code` (`agent_code`),
+                                KEY `idx_telegram_chat_id` (`telegram_chat_id`),
                                 KEY `idx_status` (`status`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
                             
@@ -962,6 +966,7 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `profile_id` INT UNSIGNED NOT NULL,
                                 `name` VARCHAR(150) NOT NULL,
                                 `phone` VARCHAR(32) DEFAULT NULL,
+                                `telegram_chat_id` VARCHAR(50) DEFAULT NULL,
                                 `email` VARCHAR(150) DEFAULT NULL,
                                 `address` TEXT DEFAULT NULL,
                                 `service_number` VARCHAR(100) DEFAULT NULL,
@@ -977,6 +982,7 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
                                 PRIMARY KEY (`id`),
                                 KEY `idx_profile_id` (`profile_id`),
+                                KEY `idx_telegram_chat_id` (`telegram_chat_id`),
                                 KEY `idx_billing_day` (`billing_day`),
                                 CONSTRAINT `fk_billing_customers_profile` FOREIGN KEY (`profile_id`) REFERENCES `billing_profiles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",

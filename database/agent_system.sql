@@ -9,8 +9,11 @@ CREATE TABLE IF NOT EXISTS agents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     agent_code VARCHAR(20) UNIQUE NOT NULL,
     agent_name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20) UNIQUE NOT NULL,
     email VARCHAR(100),
+    phone VARCHAR(20) UNIQUE NOT NULL,
+    telegram_chat_id VARCHAR(50) DEFAULT NULL,
+    telegram_username VARCHAR(100) DEFAULT NULL,
+    preferred_channel ENUM('whatsapp', 'telegram', 'both') DEFAULT 'whatsapp',
     password VARCHAR(255) NOT NULL,
     balance DECIMAL(15,2) DEFAULT 0.00,
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
@@ -202,29 +205,27 @@ CREATE TABLE IF NOT EXISTS agent_settings (
     INDEX idx_agent_id (agent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Table: payment_methods
--- Metode pembayaran untuk transaksi
-CREATE TABLE IF NOT EXISTS payment_methods (
+-- Table: pppoe_notification_settings
+-- Stores PPPoE login/logout notification settings for agents
+CREATE TABLE IF NOT EXISTS pppoe_notification_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    gateway_name VARCHAR(50) NOT NULL,
-    method_code VARCHAR(50) NOT NULL,
-    method_name VARCHAR(100) NOT NULL,
-    method_type VARCHAR(20) NOT NULL,
-    name VARCHAR(100) NOT NULL DEFAULT '',
-    type VARCHAR(50) NOT NULL DEFAULT '',
-    display_name VARCHAR(100) NOT NULL DEFAULT '',
-    icon VARCHAR(100) DEFAULT NULL,
-    icon_url VARCHAR(255) DEFAULT NULL,
-    admin_fee_type ENUM('percentage','fixed','flat','percent') DEFAULT 'fixed',
-    admin_fee_value DECIMAL(10,2) DEFAULT 0.00,
-    min_amount DECIMAL(10,2) DEFAULT 0.00,
-    max_amount DECIMAL(12,2) DEFAULT 999999999.99,
-    is_active TINYINT(1) DEFAULT 1,
-    sort_order INT DEFAULT 0,
-    config TEXT DEFAULT NULL,
+    agent_id INT NOT NULL,
+    enabled BOOLEAN DEFAULT FALSE,
+    notify_on_login BOOLEAN DEFAULT TRUE,
+    notify_on_logout BOOLEAN DEFAULT TRUE,
+    notification_message_template TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_agent_settings (agent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Insert default settings for existing agents
+INSERT INTO pppoe_notification_settings (agent_id, enabled, notify_on_login, notify_on_logout)
+SELECT id, FALSE, TRUE, TRUE 
+FROM agents 
+WHERE id NOT IN (SELECT agent_id FROM pppoe_notification_settings)
+ON DUPLICATE KEY UPDATE agent_id=agent_id;
 
 -- Insert default settings
 INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description) VALUES

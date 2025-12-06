@@ -16,6 +16,10 @@ require_once(__DIR__ . '/../include/telegram_config.php');
 
 // Load MikroTik helper functions
 require_once(__DIR__ . '/telegram_mikrotik_helpers.php');
+// Load Digiflazz helper functions
+require_once(__DIR__ . '/telegram_digiflazz_helpers.php');
+// Load WiFi helper functions
+require_once(__DIR__ . '/telegram_wifi_helpers.php');
 
 // Check if Telegram is enabled
 if (!defined('TELEGRAM_ENABLED') || !TELEGRAM_ENABLED) {
@@ -225,7 +229,11 @@ function processTelegramCommand($chatId, $message, $username = '', $firstName = 
                         disableTelegramPPPoESecret($chatId, $username);
                     }
                 } elseif ($type == 'hotspot' || $type == 'hs') {
-                    sendTelegramMessage($chatId, "🔄 *HOTSPOT ENABLE/DISABLE*\n\nFitur manajemen hotspot via Telegram sedang dalam pengembangan.\n\nSementara gunakan panel admin atau WhatsApp.");
+                    if ($isEnable) {
+                        enableTelegramHotspotUser($chatId, $username);
+                    } else {
+                        disableTelegramHotspotUser($chatId, $username);
+                    }
                 } else {
                     sendTelegramMessage($chatId, "❌ *FORMAT SALAH*\n\nFormat:\n*ENABLE PPPOE <username>*\n*DISABLE PPPOE <username>*\n*ENABLE HOTSPOT <username>*\n*DISABLE HOTSPOT <username>*");
                 }
@@ -237,20 +245,86 @@ function processTelegramCommand($chatId, $message, $username = '', $firstName = 
         
         // SALDO DIGIFLAZZ
         if (in_array($messageLower, ['saldo digiflazz', 'cek saldo digiflazz', 'balance digiflazz'])) {
-            sendTelegramMessage($chatId, "💰 *SALDO DIGIFLAZZ*\n\nFitur cek saldo Digiflazz via Telegram sedang dalam pengembangan.\n\nSementara gunakan panel admin atau WhatsApp.");
+            checkTelegramDigiflazzBalance($chatId);
+            return;
+        }
+        
+        // PENCARIAN DEVICE
+        if (strpos($messageLower, 'cariperangkat ') === 0 || strpos($messageLower, 'cari perangkat ') === 0) {
+            $query = trim(str_replace(['cariperangkat', 'cari perangkat'], '', $messageLower));
+            findTelegramDevice($chatId, $query);
+            return;
+        }
+
+        // REGISTER AGENT/CUSTOMER
+        if (strpos($messageLower, 'reg ') === 0 || strpos($messageLower, 'register ') === 0) {
+            $phone = trim(str_replace(['reg ', 'register '], '', $messageLower));
+            $phone = preg_replace('/[^0-9]/', '', $phone);
+            
+            if (empty($phone)) {
+                sendTelegramMessage($chatId, "❌ *FORMAT SALAH*\n\nGunakan: `REG <NOMOR_HP>`\nContoh: `REG 08123456789`");
+                return;
+            }
+            
+            // Basic link logic (for prototype/ MVP parity)
+            // Ideally we'd send OTP, but for now we'll match by phone directly if it exists in DB.
+            $db = getDBConnection();
+            if ($db) {
+                // Check Agent
+                $stmt = $db->prepare("SELECT id FROM agents WHERE phone LIKE ? OR phone LIKE ? LIMIT 1");
+                $stmt->execute(['%'.$phone, '%'.$phone]); // Simple loose match
+                $agent = $stmt->fetch();
+                
+                if ($agent) {
+                    $upd = $db->prepare("UPDATE agents SET telegram_chat_id = ? WHERE id = ?");
+                    $upd->execute([$chatId, $agent['id']]);
+                    sendTelegramMessage($chatId, "✅ *REGISTRASI BERHASIL*\n\nAkun Telegram terhubung sebagai AGEN.");
+                    return;
+                }
+                
+                // Check Customer
+                $stmt = $db->prepare("SELECT id FROM billing_customers WHERE phone LIKE ? OR phone LIKE ? LIMIT 1");
+                $stmt->execute(['%'.$phone, '%'.$phone]);
+                $cust = $stmt->fetch();
+                
+                if ($cust) {
+                    $upd = $db->prepare("UPDATE billing_customers SET telegram_chat_id = ? WHERE id = ?");
+                    $upd->execute([$chatId, $cust['id']]);
+                    sendTelegramMessage($chatId, "✅ *REGISTRASI BERHASIL*\n\nAkun Telegram terhubung sebagai PELANGGAN.");
+                    return;
+                }
+                
+                sendTelegramMessage($chatId, "❌ *NOMOR TIDAK DITEMUKAN*\n\nNomor HP tidak terdaftar di sistem.");
+            }
             return;
         }
     }
     
     // User commands - PULSA
     if (strpos($messageLower, 'pulsa ') === 0) {
-        sendTelegramMessage($chatId, "📱 *BELI PULSA/DATA*\n\nFitur pembelian pulsa via Telegram sedang dalam pengembangan.\n\nSementara gunakan WhatsApp atau panel admin.");
+        $parts = explode(' ', $message);
+        $sku = $parts[1] ?? '';
+        $number = $parts[2] ?? '';
+        
+        if (empty($sku) || empty($number)) {
+             sendTelegramMessage($chatId, "❌ *FORMAT SALAH*\n\nGunakan: `PULSA <SKU> <NOMOR>`");
+             return;
+        }
+        
+        purchaseTelegramDigiflazz($chatId, $sku, $number);
         return;
     }
     
     // User commands - GANTI WIFI/SANDI
-    if (strpos($messageLower, 'gantiwifi ') === 0 || strpos($messageLower, 'gantisandi ') === 0) {
-        sendTelegramMessage($chatId, "🔐 *GANTI WIFI/SANDI*\n\nFitur ganti WiFi/Sandi via Telegram sedang dalam pengembangan.\n\nSementara gunakan WhatsApp atau panel admin.");
+    if (strpos($messageLower, 'gantiwifi ') === 0) {
+        $ssid = trim(substr($message, 10)); // Remove "GANTIWIFI "
+        changeTelegramWiFiSSID($chatId, $ssid);
+        return;
+    }
+    
+    if (strpos($messageLower, 'gantisandi ') === 0) {
+        $pass = trim(substr($message, 11)); // Remove "GANTISANDI "
+        changeTelegramWiFiPassword($chatId, $pass);
         return;
     }
     

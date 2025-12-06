@@ -878,7 +878,144 @@ function generateTelegramVoucherCredentials() {
 }
 
 /**
- * NOTE: For HOTSPOT enable/disable, SALDO DIGIFLAZZ, PULSA, GANTIWIFI, GANTISANDI
- * these can be added later if needed. Core PPPoE management is now complete.
+ * Enable Hotspot User
  */
+function enableTelegramHotspotUser($chatId, $username) {
+    global $data;
+    if (!isset($data) || empty($data)) {
+        require_once(__DIR__ . '/../include/config.php');
+    }
+    $sessionConfig = isset($data) ? $data : array();
+    
+    if (empty($sessionConfig)) {
+        sendTelegramMessage($chatId, "❌ *SISTEM ERROR*\n\nKonfigurasi session tidak ter-load.");
+        return;
+    }
+    
+    $sessions = array_keys($sessionConfig);
+    $session = null;
+    foreach ($sessions as $s) {
+        if ($s != 'mikhmon') {
+            $session = $s;
+            break;
+        }
+    }
+    
+    if (!$session) {
+        sendTelegramMessage($chatId, "❌ *SISTEM ERROR*\n\nSession MikroTik tidak ditemukan.");
+        return;
+    }
+    
+    $sessionData = $sessionConfig[$session];
+    $iphost = explode('!', $sessionData[1])[1] ?? '';
+    $userhost = explode('@|@', $sessionData[2])[1] ?? '';
+    $passwdhost = explode('#|#', $sessionData[3])[1] ?? '';
+    
+    require_once(__DIR__ . '/../lib/routeros_api.class.php');
+    
+    $API = new RouterosAPI();
+    $API->debug = false;
+    
+    if (!$API->connect($iphost, $userhost, decrypt($passwdhost))) {
+        sendTelegramMessage($chatId, "❌ *GAGAL TERHUBUNG*\n\nTidak dapat terhubung ke MikroTik.");
+        return;
+    }
+    
+    $users = $API->comm("/ip/hotspot/user/print", array("?name" => $username));
+    
+    if (empty($users)) {
+        $API->disconnect();
+        sendTelegramMessage($chatId, "❌ *USERNAME TIDAK DITEMUKAN*\n\nUsername *$username* tidak ada di MikroTik.");
+        return;
+    }
+    
+    $userId = $users[0]['.id'];
+    $isDisabled = isset($users[0]['disabled']) && $users[0]['disabled'] == 'true';
+    
+    if (!$isDisabled) {
+        $API->disconnect();
+        sendTelegramMessage($chatId, "ℹ️ *SUDAH ENABLE*\n\nUsername *$username* sudah dalam keadaan enable.");
+        return;
+    }
+    
+    $API->comm("/ip/hotspot/user/set", array(
+        ".id" => $userId,
+        "disabled" => "no"
+    ));
+    
+    $API->disconnect();
+    
+    sendTelegramMessage($chatId, "✅ *HOTSPOT USER BERHASIL ENABLE*\n\nUsername: *$username*");
+}
+
+/**
+ * Disable Hotspot User
+ */
+function disableTelegramHotspotUser($chatId, $username) {
+    global $data;
+    if (!isset($data) || empty($data)) {
+        require_once(__DIR__ . '/../include/config.php');
+    }
+    $sessionConfig = isset($data) ? $data : array();
+    
+    if (empty($sessionConfig)) {
+        sendTelegramMessage($chatId, "❌ *SISTEM ERROR*\n\nKonfigurasi session tidak ter-load.");
+        return;
+    }
+    
+    $sessions = array_keys($sessionConfig);
+    $session = null;
+    foreach ($sessions as $s) {
+        if ($s != 'mikhmon') {
+            $session = $s;
+            break;
+        }
+    }
+    
+    if (!$session) {
+        sendTelegramMessage($chatId, "❌ *SISTEM ERROR*\n\nSession MikroTik tidak ditemukan.");
+        return;
+    }
+    
+    $sessionData = $sessionConfig[$session];
+    $iphost = explode('!', $sessionData[1])[1] ?? '';
+    $userhost = explode('@|@', $sessionData[2])[1] ?? '';
+    $passwdhost = explode('#|#', $sessionData[3])[1] ?? '';
+    
+    require_once(__DIR__ . '/../lib/routeros_api.class.php');
+    
+    $API = new RouterosAPI();
+    $API->debug = false;
+    
+    if (!$API->connect($iphost, $userhost, decrypt($passwdhost))) {
+        sendTelegramMessage($chatId, "❌ *GAGAL TERHUBUNG*\n\nTidak dapat terhubung ke MikroTik.");
+        return;
+    }
+    
+    $users = $API->comm("/ip/hotspot/user/print", array("?name" => $username));
+    
+    if (empty($users)) {
+        $API->disconnect();
+        sendTelegramMessage($chatId, "❌ *USERNAME TIDAK DITEMUKAN*\n\nUsername *$username* tidak ada di MikroTik.");
+        return;
+    }
+    
+    $userId = $users[0]['.id'];
+    $isDisabled = isset($users[0]['disabled']) && $users[0]['disabled'] == 'true';
+    
+    if ($isDisabled) {
+        $API->disconnect();
+        sendTelegramMessage($chatId, "ℹ️ *SUDAH DISABLE*\n\nUsername *$username* sudah dalam keadaan disable.");
+        return;
+    }
+    
+    $API->comm("/ip/hotspot/user/set", array(
+        ".id" => $userId,
+        "disabled" => "yes"
+    ));
+    
+    $API->disconnect();
+    
+    sendTelegramMessage($chatId, "✅ *HOTSPOT USER BERHASIL DISABLE*\n\nUsername: *$username*");
+}
 ?>

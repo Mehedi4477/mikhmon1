@@ -36,12 +36,13 @@ define('TELEGRAM_API_URL', 'https://api.telegram.org/bot' . TELEGRAM_BOT_TOKEN);
 define('TELEGRAM_WEBHOOK_URL', 'https://yourdomain.com/api/telegram_webhook.php');
 
 /**
- * Send message via Telegram
+ * Send message to Telegram
  * @param string|int $chatId Telegram chat ID
  * @param string $message Message text
  * @param string $parseMode Parse mode: 'Markdown', 'MarkdownV2', 'HTML', or null
  * @return array Response with success status
  */
+if (!function_exists('sendTelegramMessage')) {
 function sendTelegramMessage($chatId, $message, $parseMode = 'Markdown') {
     // Debug log
     $debugLog = __DIR__ . '/../logs/telegram_send_debug.log';
@@ -106,6 +107,7 @@ function sendTelegramMessage($chatId, $message, $parseMode = 'Markdown') {
         'response' => $result,
         'message' => isset($result['description']) ? $result['description'] : 'Unknown error'
     ];
+}
 }
 
 /**

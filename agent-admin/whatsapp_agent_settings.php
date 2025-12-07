@@ -150,11 +150,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         // WhatsApp API Settings (for public voucher)
         $apiSettings = [
             'whatsapp_api_url' => $_POST['whatsapp_api_url'] ?? '',
-            'whatsapp_api_key' => $_POST['whatsapp_api_key'] ?? ''
+            'whatsapp_api_key' => $_POST['whatsapp_api_key'] ?? '',
+            'whatsapp_mpwa_sender' => $_POST['whatsapp_mpwa_sender'] ?? ''
         ];
         
         foreach ($apiSettings as $key => $value) {
-            $description = $key === 'whatsapp_api_url' ? 'WhatsApp API Gateway URL for public voucher' : 'WhatsApp API Key/Token';
+            $description = '';
+            switch ($key) {
+                case 'whatsapp_api_url':
+                    $description = 'WhatsApp API Gateway URL for public voucher';
+                    break;
+                case 'whatsapp_api_key':
+                    $description = 'WhatsApp API Key/Token';
+                    break;
+                case 'whatsapp_mpwa_sender':
+                    $description = 'MPWA Sender Number (Device) - Nomor yang terdaftar di MPWA';
+                    break;
+                default:
+                    $description = 'WhatsApp API Setting';
+            }
             $stmt = $db->prepare("
                 INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by) 
                 VALUES (1, ?, ?, 'string', ?, 'admin')
@@ -213,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
 
 // Load current settings
 $db = getDBConnection();
-$stmt = $db->query("SELECT setting_key, setting_value FROM agent_settings WHERE setting_key LIKE 'admin_whatsapp_numbers' OR setting_key LIKE 'wa_%' OR setting_key LIKE 'whatsapp_api_%'");
+$stmt = $db->query("SELECT setting_key, setting_value FROM agent_settings WHERE setting_key LIKE 'admin_whatsapp_numbers' OR setting_key LIKE 'wa_%' OR setting_key LIKE 'whatsapp_api_%' OR setting_key LIKE 'whatsapp_mpwa_%'");
 $currentSettings = [];
 while ($row = $stmt->fetch()) {
     $currentSettings[$row['setting_key']] = $row['setting_value'];
@@ -230,6 +244,7 @@ $defaults = [
     'admin_whatsapp_numbers' => '',
     'whatsapp_api_url' => 'https://api.fonnte.com/send',
     'whatsapp_api_key' => '',
+    'whatsapp_mpwa_sender' => '',
     'wa_message_header' => '╔═══════════════════╗
 ║  🎫 VOUCHER WIFI  ║
 ╚═══════════════════╝',
@@ -483,7 +498,7 @@ input.form-control:focus {
             <!-- WhatsApp API Settings -->
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fa fa-cog"></i> WhatsApp API (Public Voucher)</h3>
+                    <h3><i class="fa fa-cog"></i> WhatsApp API (Public Voucher + MPWA)</h3>
                 </div>
                 <div class="card-body">
                 <div class="form-group">
@@ -491,7 +506,8 @@ input.form-control:focus {
                     <input type="text" name="whatsapp_api_url" class="form-control" value="<?= htmlspecialchars($currentSettings['whatsapp_api_url']); ?>" placeholder="https://api.fonnte.com/send">
                     <div class="help-text">
                         • URL gateway WhatsApp untuk pengiriman voucher public<br>
-                        • Contoh: https://api.fonnte.com/send, https://wablas.com/api/send-message
+                        • Contoh: https://api.fonnte.com/send, https://wablas.com/api/send-message<br>
+                        • Untuk MPWA: http://localhost:8000 atau https://mpwa-anda.com
                     </div>
                 </div>
 
@@ -501,6 +517,16 @@ input.form-control:focus {
                     <div class="help-text">
                         • API Key/Token dari provider WhatsApp gateway Anda<br>
                         • <strong style="color: #d9534f;">WAJIB DIISI</strong> agar voucher public bisa dikirim via WhatsApp
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>MPWA Sender Number (Device)</label>
+                    <input type="text" name="whatsapp_mpwa_sender" class="form-control" value="<?= htmlspecialchars($currentSettings['whatsapp_mpwa_sender'] ?? ''); ?>" placeholder="628123456789">
+                    <div class="help-text">
+                        • <strong style="color: #d9534f;">KHUSUS MPWA:</strong> Nomor WhatsApp yang terdaftar di MPWA (format 62xxx)<br>
+                        • Nomor ini harus sudah terkoneksi dan aktif di dashboard MPWA<br>
+                        • Kosongkan jika tidak menggunakan gateway MPWA
                     </div>
                 </div>
                 </div>

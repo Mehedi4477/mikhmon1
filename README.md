@@ -131,6 +131,8 @@ http://ganti_dengan_domain_anda/check_cron_path.php
 
 pilih coppy command dan masukan ke cronjob supaya tagihan akan di generate setiap tanggal 1 tiap bulan
 
+user login : alijaya password : 060111
+
 #### WhatsApp Integration
 1. Setup webhook di gateway WhatsApp (Fonnte/Wablas/WooWA)
 2. Konfigurasi di `settings/whatsapp_settings.php`
@@ -192,6 +194,7 @@ Project Link: [https://github.com/alijayanet/mikhmon-agent](https://github.com/a
   Made with ❤️ by Ali Jaya Net
 
 </p>
+
 
 
 

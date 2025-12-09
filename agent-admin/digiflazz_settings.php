@@ -15,8 +15,8 @@ $info = '';
 // Helper untuk menyimpan setting
 function saveSetting(PDO $db, string $key, $value, string $type = 'string', string $description = ''): void {
     $stmt = $db->prepare("
-        INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by)
-        VALUES (1, :key, :value, :type, :description, 'admin')
+        INSERT INTO agent_settings (setting_key, setting_value, setting_type, description, updated_by)
+        VALUES (:key, :value, :type, :description, 'admin')
         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = 'admin'
     ");
     $stmt->execute([

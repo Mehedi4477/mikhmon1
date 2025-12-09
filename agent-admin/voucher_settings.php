@@ -86,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         // Save voucher settings
         foreach ($settingsToSave as $key => $value) {
             $stmt = $db->prepare("
-                INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by) 
-                VALUES (1, ?, ?, 'string', 'Voucher generation setting', 'admin')
+                INSERT INTO agent_settings (setting_key, setting_value, setting_type, description, updated_by) 
+                VALUES (?, ?, 'string', 'Voucher generation setting', 'admin')
                 ON DUPLICATE KEY UPDATE setting_value = ?, updated_by = 'admin'
             ");
             $stmt->execute([$key, $value, $value]);
@@ -96,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         // Save payment settings
         foreach ($paymentToSave as $key => $value) {
             $stmt = $db->prepare("
-                INSERT INTO agent_settings (agent_id, setting_key, setting_value, setting_type, description, updated_by) 
-                VALUES (1, ?, ?, 'string', 'Payment information setting', 'admin')
+                INSERT INTO agent_settings (setting_key, setting_value, setting_type, description, updated_by) 
+                VALUES (?, ?, 'string', 'Payment information setting', 'admin')
                 ON DUPLICATE KEY UPDATE setting_value = ?, updated_by = 'admin'
             ");
             $stmt->execute([$key, $value, $value]);

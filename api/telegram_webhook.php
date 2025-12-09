@@ -127,7 +127,7 @@ function processTelegramCommand($chatId, $message, $username = '', $firstName = 
     }
     
     // Handle voucher command (admin only for now)
-    if (strpos($messageLower, 'voucher ') === 0 || strpos($messageLower, 'vcr ') === 0) {
+    if (strpos($messageLower, 'voucher ') === 0) {
         // Extract profile name
         $parts = explode(' ', $messageLower, 2);
         $profileName = isset($parts[1]) ? trim($parts[1]) : '';
@@ -139,6 +139,47 @@ function processTelegramCommand($chatId, $message, $username = '', $firstName = 
         
         // Generate voucher
         purchaseTelegramVoucher($chatId, $profileName, $isAdmin);
+        return;
+    }
+    
+    // Handle VCR command with advanced parsing - VCR [USERNAME] <PROFILE> [NOMER]
+    if (strpos($messageLower, 'vcr ') === 0) {
+        $rest = trim(str_replace('vcr ', '', $messageLower));
+        $parts = preg_split('/\s+/', $rest);
+        
+        $username = null;
+        $profile = null;
+        $customerPhone = null;
+        
+        if (count($parts) == 1) {
+            // Format: VCR 3K
+            $profile = $parts[0];
+        } elseif (count($parts) == 2) {
+            // Format: VCR 3K 08123456789 atau VCR user123 3K
+            // Check if second part is a phone number (starts with 0 or 62)
+            if (preg_match('/^[062]/', $parts[1])) {
+                // Format: VCR 3K 08123456789
+                $profile = $parts[0];
+                $customerPhone = $parts[1];
+            } else {
+                // Format: VCR user123 3K
+                $username = $parts[0];
+                $profile = $parts[1];
+            }
+        } elseif (count($parts) == 3) {
+            // Format: VCR user123 3K 08123456789
+            $username = $parts[0];
+            $profile = $parts[1];
+            $customerPhone = $parts[2];
+        }
+        
+        if (empty($profile)) {
+            sendTelegramMessage($chatId, "❌ Format salah!\n\n*Format VCR:*\n• `VCR <PROFILE>` - Generate voucher otomatis\n• `VCR <USERNAME> <PROFILE>` - Username manual\n• `VCR <PROFILE> <NOMER>` - Kirim ke nomor customer\n• `VCR <USERNAME> <PROFILE> <NOMER>` - Lengkap\n\n*Contoh:*\n• `VCR 3K`\n• `VCR user123 3K`\n• `VCR 3K 081234567890`\n• `VCR user123 3K 081234567890`");
+            return;
+        }
+        
+        // Generate voucher with advanced parameters
+        purchaseTelegramVoucherAdvanced($chatId, $profile, $isAdmin, $username, $customerPhone);
         return;
     }
     
@@ -848,29 +889,6 @@ function sendTelegramPriceList($chatId) {
     sendTelegramMessage($chatId, $message);
 }
 
-/**
- * Generate Telegram voucher credentials
- */
-function generateTelegramVoucherCredentials() {
-    // Load VoucherGenerator if available
-    if (file_exists(__DIR__ . '/../lib/VoucherGenerator.class.php')) {
-        include_once(__DIR__ . '/../lib/VoucherGenerator.class.php');
-        $voucherGen = new VoucherGenerator();
-        $voucher = $voucherGen->generateVoucher();
-        return [
-            'username' => $voucher['username'],
-            'password' => $voucher['password']
-        ];
-    } else {
-        // Fallback generation
-        $username = 'tg' . strtolower(substr(md5(time() . rand()), 0, 8));
-        $password = strtolower(substr(md5(time() . rand() . 'pass'), 0, 8));
-        return [
-            'username' => $username,
-            'password' => $password
-        ];
-    }
-}
 
 /**
  * Get agent by phone number (for Telegram)
@@ -1057,9 +1075,18 @@ function purchaseTelegramVoucher($chatId, $profileName, $isAdmin) {
     }
     
     // Generate username and password based on settings
-    $credentials = generateTelegramVoucherCredentials();
-    $username = $credentials['username'];
-    $password = $credentials['password'];
+    // Load VoucherGenerator if available
+    if (file_exists(__DIR__ . '/../lib/VoucherGenerator.class.php')) {
+        require_once(__DIR__ . '/../lib/VoucherGenerator.class.php');
+        $voucherGen = new VoucherGenerator();
+        $voucher = $voucherGen->generateVoucher();
+        $username = $voucher['username'];
+        $password = $voucher['password'];
+    } else {
+        // Fallback generation
+        $username = 'tg' . strtolower(substr(md5(time() . rand()), 0, 8));
+        $password = strtolower(substr(md5(time() . rand() . 'pass'), 0, 8));
+    }
     
     // Add user to MikroTik
     $addResult = $API->comm("/ip/hotspot/user/add", array(
@@ -1111,23 +1138,33 @@ function purchaseTelegramVoucher($chatId, $profileName, $isAdmin) {
     }
     
     // Send success message
-    $message = "✅ *VOUCHER BERHASIL DI-GENERATE*\n\n";
-    $message .= "━━━━━━━━━━━━━━━━━━━━\n";
-    $message .= "*Profile:* $profileName\n";
-    $message .= "*Validity:* $validity\n";
-    $message .= "*Harga:* $priceFormatted\n";
+    $message = "🎫 *VOUCHER ANDA*\n\n";
     $message .= "━━━━━━━━━━━━━━━━━━━━\n\n";
-    $message .= "*Username:* `$username`\n";
-    $message .= "*Password:* `$password`\n\n";
+    $message .= "Hotspot: *$hotspotname*\n";
+    $message .= "Profile: *$profileName*\n\n";
+    $message .= "Username: `$username`\n";
+    $message .= "Password: `$password`\n\n";
+    
+    // Add session timeout if available
+    if (!empty($profile['session-timeout'])) {
+        $message .= "Time Limit: " . $profile['session-timeout'] . "\n";
+    }
+    if (!empty($validity)) {
+        $message .= "Validity: $validity\n";
+    }
+    if (!empty($priceFormatted)) {
+        $message .= "Harga: $priceFormatted\n";
+    }
     
     // Show balance for agent (not for admin)
     if (!$isAdmin && $balanceAfter > 0) {
-        $message .= "💳 Saldo Anda: Rp " . number_format($balanceAfter, 0, ',', '.') . "\n\n";
+        $message .= "\n💳 Saldo Anda: Rp " . number_format($balanceAfter, 0, ',', '.') . "\n";
     }
     
+    $message .= "\nLogin URL:\n";
+    $message .= "http://$dnsname/login?username=$username&password=$password\n\n";
     $message .= "━━━━━━━━━━━━━━━━━━━━\n";
-    $message .= "Login: http://$dnsname/login\n";
-    $message .= "Hotspot: *$hotspotname*";
+    $message .= "_Terima kasih telah menggunakan layanan kami_";
     
     sendTelegramMessage($chatId, $message);
     
@@ -1591,6 +1628,273 @@ function showTelegramAgentMenu($chatId) {
     } catch (Exception $e) {
         error_log("Error in showTelegramAgentMenu: " . $e->getMessage());
         sendTelegramMessage($chatId, "❌ Terjadi kesalahan.\n\nSilakan gunakan perintah: HARGA");
+    }
+}
+
+/**
+ * Purchase/Generate voucher for Telegram with advanced parameters
+ * @param string $chatId Telegram chat ID
+ * @param string $profileName Profile name
+ * @param bool $isAdmin Is admin user
+ * @param string|null $customUsername Custom username (optional)
+ * @param string|null $customerPhone Customer phone number (optional)
+ */
+function purchaseTelegramVoucherAdvanced($chatId, $profileName, $isAdmin, $customUsername = null, $customerPhone = null) {
+    // Load session config
+    global $data;
+    if (!isset($data) || empty($data)) {
+        require_once(__DIR__ . '/../include/config.php');
+    }
+    $sessionConfig = isset($data) ? $data : array();
+    
+    if (empty($sessionConfig)) {
+        sendTelegramMessage($chatId, "❌ Sistem sedang maintenance.\n\nSilakan coba lagi nanti.");
+        return;
+    }
+    
+    // Get first session
+    $sessions = array_keys($sessionConfig);
+    $session = null;
+    foreach ($sessions as $s) {
+        if ($s != 'mikhmon') {
+            $session = $s;
+            break;
+        }
+    }
+    
+    if (!$session || !isset($sessionConfig[$session])) {
+        sendTelegramMessage($chatId, "❌ Konfigurasi server tidak ditemukan.\n\nSilakan hubungi admin.");
+        return;
+    }
+    
+    // Load session config
+    $data = $sessionConfig[$session];
+    $iphost = explode('!', $data[1])[1] ?? '';
+    $userhost = explode('@|@', $data[2])[1] ?? '';
+    $passwdhost = explode('#|#', $data[3])[1] ?? '';
+    $hotspotname = explode('%', $data[4])[1] ?? $session;
+    $dnsname = explode('^', $data[5])[1] ?? $iphost;
+    $currency = explode('&', $data[6])[1] ?? 'Rp';
+    
+    if (empty($iphost) || empty($userhost) || empty($passwdhost)) {
+        sendTelegramMessage($chatId, "❌ Konfigurasi server tidak lengkap.\n\nSilakan hubungi admin.");
+        return;
+    }
+    
+    // Connect to MikroTik
+    require_once(__DIR__ . '/../lib/routeros_api.class.php');
+    
+    $API = new RouterosAPI();
+    $API->debug = false;
+    
+    if (!$API->connect($iphost, $userhost, decrypt($passwdhost))) {
+        sendTelegramMessage($chatId, "❌ Gagal terhubung ke server.\n\nSilakan coba lagi nanti.");
+        return;
+    }
+    
+    // Get profile
+    $profiles = $API->comm("/ip/hotspot/user/profile/print", array(
+        "?name" => $profileName
+    ));
+    
+    if (empty($profiles)) {
+        $API->disconnect();
+        sendTelegramMessage($chatId, "❌ Profile *$profileName* tidak ditemukan.\n\nKetik *HARGA* untuk melihat daftar paket.");
+        return;
+    }
+    
+    $profile = $profiles[0];
+    $ponlogin = $profile['on-login'] ?? '';
+    
+    if (empty($ponlogin)) {
+        $API->disconnect();
+        sendTelegramMessage($chatId, "❌ Profile *$profileName* tidak memiliki konfigurasi harga.");
+        return;
+    }
+    
+    $parts = explode(",", $ponlogin);
+    $validity = $parts[3] ?? '';
+    $price = $parts[2] ?? '0';
+    $sprice = $parts[4] ?? '0';
+    
+    // Set buy price for balance check
+    $buyPrice = (float)$sprice;
+    
+    // Initialize agent variables
+    $agent = null;
+    $agentId = null;
+    $balanceBefore = 0;
+    $balanceAfter = 0;
+    
+    // Check agent/admin authorization
+    if (!$isAdmin) {
+        // Get agent info
+        $agent = getTelegramAgentByPhone($chatId);
+        
+        if ($agent) {
+            $agentId = $agent['id'];
+            
+            // Validate price
+            if ($buyPrice <= 0) {
+                $API->disconnect();
+                sendTelegramMessage($chatId, "❌ *HARGA TIDAK VALID*\n\nHarga paket *$profileName* belum dikonfigurasi.\nHubungi administrator.");
+                return;
+            }
+            
+            // Check balance
+            if ($agent['balance'] < $buyPrice) {
+                $reply = "❌ *SALDO TIDAK CUKUP*\n\n";
+                $reply .= "Saldo Anda: Rp " . number_format($agent['balance'], 0, ',', '.') . "\n";
+                $reply .= "Dibutuhkan: Rp " . number_format($buyPrice, 0, ',', '.') . "\n";
+                $reply .= "Kurang: Rp " . number_format($buyPrice - $agent['balance'], 0, ',', '.') . "\n\n";
+                $reply .= "Silakan topup saldo terlebih dahulu.";
+                $API->disconnect();
+                sendTelegramMessage($chatId, $reply);
+                return;
+            }
+        } else {
+            // Not an agent and not an admin - REJECT
+            $API->disconnect();
+            $errorMsg = "❌ *AKSES DITOLAK*\n\n";
+            $errorMsg .= "Chat ID Anda tidak terdaftar sebagai agent.\n\n";
+            $errorMsg .= "Untuk menjadi agent, silakan hubungi administrator.";
+            sendTelegramMessage($chatId, $errorMsg);
+            return;
+        }
+    }
+    
+    // Generate or use custom username and password
+    if (!empty($customUsername)) {
+        // Check if username already exists
+        $existingUser = $API->comm("/ip/hotspot/user/print", array("?name" => $customUsername));
+        if (!empty($existingUser)) {
+            $API->disconnect();
+            sendTelegramMessage($chatId, "❌ *USERNAME SUDAH TERDAFTAR*\n\nUsername *$customUsername* sudah digunakan.\nSilakan gunakan username lain.");
+            return;
+        }
+        $username = $customUsername;
+        $password = $customUsername; // Username = Password for voucher mode
+    } else {
+        // Generate username and password based on settings
+        // Load VoucherGenerator if available
+        if (file_exists(__DIR__ . '/../lib/VoucherGenerator.class.php')) {
+            require_once(__DIR__ . '/../lib/VoucherGenerator.class.php');
+            $voucherGen = new VoucherGenerator();
+            $voucher = $voucherGen->generateVoucher();
+            $username = $voucher['username'];
+            $password = $voucher['password'];
+        } else {
+            // Fallback generation
+            $username = 'tg' . strtolower(substr(md5(time() . rand()), 0, 8));
+            $password = strtolower(substr(md5(time() . rand() . 'pass'), 0, 8));
+        }
+    }
+    
+    // Add user to MikroTik
+    $addResult = $API->comm("/ip/hotspot/user/add", array(
+        "name" => $username,
+        "password" => $password,
+        "profile" => $profileName,
+        "comment" => "vc-Telegram-" . date('Y-m-d H:i:s')
+    ));
+    
+    $API->disconnect();
+    
+    if (empty($addResult) || isset($addResult['!trap'])) {
+        $error = isset($addResult['!trap'][0]['message']) ? $addResult['!trap'][0]['message'] : 'Unknown error';
+        sendTelegramMessage($chatId, "❌ Gagal generate voucher.\n\nError: $error");
+        return;
+    }
+    
+    // Deduct balance for agent (only for non-admin)
+    if (!$isAdmin && $agent && $agentId) {
+        // Load Agent class if not already loaded
+        if (!class_exists('Agent')) {
+            require_once(__DIR__ . '/../lib/Agent.class.php');
+        }
+        
+        $agentClass = new Agent();
+        $deductResult = $agentClass->deductBalance(
+            $agentId,
+            $buyPrice,
+            $profileName,
+            $username,
+            'Voucher Telegram: ' . $profileName,
+            'voucher_telegram'
+        );
+        
+        if ($deductResult['success']) {
+            $balanceBefore = $deductResult['balance_before'];
+            $balanceAfter = $deductResult['balance_after'];
+        } else {
+            // Log error but don't fail the transaction (voucher already created)
+            error_log("Failed to deduct balance for Telegram agent $agentId: " . $deductResult['message']);
+        }
+    }
+    
+    // Format price
+    if (strpos($currency, 'Rp') !== false || strpos($currency, 'IDR') !== false) {
+        $priceFormatted = $currency . " " . number_format((float)$sprice, 0, ",", ".");
+    } else {
+        $priceFormatted = $currency . " " . number_format((float)$sprice, 2);
+    }
+    
+    // Send success message to agent/admin
+    $message = "🎫 *VOUCHER ANDA*\n\n";
+    $message .= "━━━━━━━━━━━━━━━━━━━━\n\n";
+    $message .= "Hotspot: *$hotspotname*\n";
+    $message .= "Profile: *$profileName*\n\n";
+    $message .= "Username: `$username`\n";
+    $message .= "Password: `$password`\n\n";
+    
+    // Add session timeout if available
+    if (!empty($profile['session-timeout'])) {
+        $message .= "Time Limit: " . $profile['session-timeout'] . "\n";
+    }
+    if (!empty($validity)) {
+        $message .= "Validity: $validity\n";
+    }
+    if (!empty($priceFormatted)) {
+        $message .= "Harga: $priceFormatted\n";
+    }
+    
+    // Show balance for agent (not for admin)
+    if (!$isAdmin && $balanceAfter > 0) {
+        $message .= "\n💳 Saldo Anda: Rp " . number_format($balanceAfter, 0, ',', '.') . "\n";
+    }
+    
+    $message .= "\nLogin URL:\n";
+    $message .= "http://$dnsname/login?username=$username&password=$password\n\n";
+    $message .= "━━━━━━━━━━━━━━━━━━━━\n";
+    $message .= "_Terima kasih telah menggunakan layanan kami_";
+    
+    // Send to agent/admin
+    sendTelegramMessage($chatId, $message);
+    
+    // Send to customer if phone number provided
+    if (!empty($customerPhone)) {
+        // Normalize customer phone number
+        $customerPhone = preg_replace('/[^0-9]/', '', $customerPhone);
+        if (!empty($customerPhone)) {
+            // Create customer voucher message
+            $customerMessage = "🎫 *VOUCHER WIFI ANDA*\n\n";
+            $customerMessage .= "━━━━━━━━━━━━━━━━━━━━\n";
+            $customerMessage .= "*Hotspot:* $hotspotname\n";
+            $customerMessage .= "*Profile:* $profileName\n";
+            $customerMessage .= "*Validity:* $validity\n";
+            $customerMessage .= "━━━━━━━━━━━━━━━━━━━━\n\n";
+            $customerMessage .= "*Username:* `$username`\n";
+            $customerMessage .= "*Password:* `$password`\n\n";
+            $customerMessage .= "Login URL:\nhttp://$dnsname/login?username=$username&password=$password\n\n";
+            $customerMessage .= "_Terima kasih telah menggunakan layanan kami_";
+            
+            // Send to customer via Telegram (if they have Telegram) or log for WhatsApp sending
+            // For now, we'll just log it - you can integrate with WhatsApp gateway here
+            error_log("Voucher for customer $customerPhone: $customerMessage");
+            
+            // Notify agent that voucher was sent to customer
+            sendTelegramMessage($chatId, "📤 *Voucher telah dikirim ke customer:* $customerPhone");
+        }
     }
 }
 

@@ -130,8 +130,32 @@ function indexExists($pdo, $table, $index) {
 function ensureTable($pdo, $name, $ddl) {
     if (!tableExists($pdo, $name)) {
         logMessage("Membuat tabel $name ...", 'info');
-        $pdo->exec($ddl);
-        logMessage("Tabel $name berhasil dibuat", 'success');
+        
+        // For tables with foreign key constraints, create without constraints first
+        if (strpos($ddl, 'CONSTRAINT') !== false && strpos($ddl, 'FOREIGN KEY') !== false) {
+            logMessage("Tabel $name memiliki foreign key constraints, membuat tanpa constraints dulu...", 'info');
+            
+            // Remove foreign key constraints from DDL
+            $ddlWithoutFK = preg_replace('/,\s*CONSTRAINT\s+`[^`]+`\s+FOREIGN\s+KEY[^,)]+(?:,|(?=\s*\)\s*ENGINE))/i', '', $ddl);
+            
+            try {
+                $pdo->exec($ddlWithoutFK);
+                logMessage("Tabel $name berhasil dibuat tanpa foreign key constraints", 'success');
+            } catch (PDOException $e) {
+                logMessage("Error membuat tabel $name: " . $e->getMessage(), 'error');
+                // Try with original DDL as fallback
+                try {
+                    $pdo->exec($ddl);
+                    logMessage("Tabel $name berhasil dibuat dengan DDL original", 'success');
+                } catch (PDOException $e2) {
+                    logMessage("Error membuat tabel $name dengan DDL original: " . $e2->getMessage(), 'error');
+                    throw $e2;
+                }
+            }
+        } else {
+            $pdo->exec($ddl);
+            logMessage("Tabel $name berhasil dibuat", 'success');
+        }
     } else {
         logMessage("Tabel $name sudah ada", 'info');
     }
@@ -139,16 +163,53 @@ function ensureTable($pdo, $name, $ddl) {
 
 function ensureColumn($pdo, $table, $column, $definition, $after = null) {
     if (!columnExists($pdo, $table, $column)) {
-        $afterSql = $after ? " AFTER `$after`" : '';
-        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition$afterSql");
-        logMessage("Kolom $table.$column ditambahkan", 'success');
+        try {
+            $afterSql = '';
+            // Only use AFTER clause if the reference column exists
+            if ($after && columnExists($pdo, $table, $after)) {
+                $afterSql = " AFTER `$after`";
+            } elseif ($after) {
+                logMessage("Warning: Reference column '$after' not found in table '$table', adding column '$column' at end", 'warning');
+            }
+            
+            $sql = "ALTER TABLE `$table` ADD COLUMN `$column` $definition$afterSql";
+            $pdo->exec($sql);
+            logMessage("Kolom $table.$column ditambahkan", 'success');
+        } catch (PDOException $e) {
+            logMessage("Error adding column $table.$column: " . $e->getMessage(), 'error');
+            throw $e;
+        }
     }
 }
 
 function ensureIndex($pdo, $table, $index, $definition) {
     if (!indexExists($pdo, $table, $index)) {
-        $pdo->exec("ALTER TABLE `$table` ADD $definition");
-        logMessage("Index $index ditambahkan ke $table", 'success');
+        try {
+            $pdo->exec("ALTER TABLE `$table` ADD $definition");
+            logMessage("Index $index ditambahkan ke $table", 'success');
+        } catch (PDOException $e) {
+            logMessage("Error adding index $index to $table: " . $e->getMessage(), 'error');
+            // Don't throw for index errors as they're not critical
+        }
+    }
+}
+
+function ensureForeignKey($pdo, $table, $constraint_name, $definition) {
+    try {
+        // Check if foreign key constraint exists
+        $stmt = $pdo->prepare("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+                              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'");
+        $stmt->execute([$table, $constraint_name]);
+        
+        if ($stmt->rowCount() == 0) {
+            $pdo->exec("ALTER TABLE `$table` ADD CONSTRAINT `$constraint_name` $definition");
+            logMessage("Foreign key constraint $constraint_name ditambahkan ke $table", 'success');
+        } else {
+            logMessage("Foreign key constraint $constraint_name sudah ada di $table", 'info');
+        }
+    } catch (PDOException $e) {
+        logMessage("Error adding foreign key constraint $constraint_name to $table: " . $e->getMessage(), 'warning');
+        // Don't throw for foreign key errors as they're not always critical
     }
 }
 
@@ -164,6 +225,108 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
     $stmt = $pdo->prepare("INSERT INTO agents (agent_code, agent_name, status, phone) VALUES (?, ?, ?, ?)");
     $stmt->execute([$code, $name, $status, 'seed-'.strtolower($code)]);
     return $pdo->lastInsertId();
+}
+
+function fixCollationIssues($pdo) {
+    logMessage('Memeriksa dan memperbaiki collation issues...', 'info');
+    
+    // Daftar kolom yang perlu diperbaiki collationnya
+    $collationFixes = [
+        'agent_transactions' => [
+            'voucher_username' => 'utf8mb4_unicode_ci',
+            'voucher_password' => 'utf8mb4_unicode_ci',
+            'profile_name' => 'utf8mb4_unicode_ci',
+            'description' => 'utf8mb4_unicode_ci',
+            'reference_id' => 'utf8mb4_unicode_ci',
+            'ip_address' => 'utf8mb4_unicode_ci',
+            'user_agent' => 'utf8mb4_unicode_ci'
+        ],
+        'agents' => [
+            'agent_code' => 'utf8mb4_unicode_ci',
+            'agent_name' => 'utf8mb4_unicode_ci',
+            'email' => 'utf8mb4_unicode_ci',
+            'phone' => 'utf8mb4_unicode_ci',
+            'password' => 'utf8mb4_unicode_ci',
+            'address' => 'utf8mb4_unicode_ci',
+            'notes' => 'utf8mb4_unicode_ci',
+            'created_by' => 'utf8mb4_unicode_ci'
+        ]
+    ];
+    
+    foreach ($collationFixes as $table => $columns) {
+        if (!tableExists($pdo, $table)) {
+            continue;
+        }
+        
+        foreach ($columns as $column => $targetCollation) {
+            if (!columnExists($pdo, $table, $column)) {
+                continue;
+            }
+            
+            // Cek collation saat ini
+            try {
+                $stmt = $pdo->prepare("SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+                                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+                $stmt->execute([$table, $column]);
+                $currentCollation = $stmt->fetchColumn();
+                
+                if ($currentCollation && $currentCollation !== $targetCollation) {
+                    logMessage("Memperbaiki collation $table.$column: $currentCollation -> $targetCollation", 'info');
+                    
+                    // Ambil tipe data kolom
+                    $stmt = $pdo->prepare("SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE, COLUMN_DEFAULT 
+                                          FROM INFORMATION_SCHEMA.COLUMNS 
+                                          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+                    $stmt->execute([$table, $column]);
+                    $columnInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    $dataType = $columnInfo['DATA_TYPE'];
+                    $maxLength = $columnInfo['CHARACTER_MAXIMUM_LENGTH'];
+                    $nullable = $columnInfo['IS_NULLABLE'] === 'YES' ? '' : 'NOT NULL';
+                    $default = $columnInfo['COLUMN_DEFAULT'] !== null ? "DEFAULT '" . $columnInfo['COLUMN_DEFAULT'] . "'" : '';
+                    
+                    // Bangun definisi kolom baru
+                    $columnDefinition = $dataType;
+                    if ($maxLength) {
+                        $columnDefinition .= "($maxLength)";
+                    }
+                    $columnDefinition .= " CHARACTER SET utf8mb4 COLLATE $targetCollation $nullable $default";
+                    
+                    // Update collation
+                    $sql = "ALTER TABLE `$table` MODIFY COLUMN `$column` $columnDefinition";
+                    $pdo->exec($sql);
+                    logMessage("Collation $table.$column berhasil diperbaiki", 'success');
+                } else if ($currentCollation === $targetCollation) {
+                    logMessage("Collation $table.$column sudah benar ($targetCollation)", 'info');
+                }
+            } catch (PDOException $e) {
+                logMessage("Error memperbaiki collation $table.$column: " . $e->getMessage(), 'error');
+            }
+        }
+    }
+    
+    // Perbaiki collation tabel default jika perlu
+    $tablesToFix = ['agent_transactions', 'agents', 'digiflazz_transactions'];
+    foreach ($tablesToFix as $table) {
+        if (tableExists($pdo, $table)) {
+            try {
+                $stmt = $pdo->prepare("SELECT TABLE_COLLATION FROM INFORMATION_SCHEMA.TABLES 
+                                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
+                $stmt->execute([$table]);
+                $tableCollation = $stmt->fetchColumn();
+                
+                if ($tableCollation && $tableCollation !== 'utf8mb4_unicode_ci') {
+                    logMessage("Memperbaiki collation tabel $table: $tableCollation -> utf8mb4_unicode_ci", 'info');
+                    $pdo->exec("ALTER TABLE `$table` COLLATE=utf8mb4_unicode_ci");
+                    logMessage("Collation tabel $table berhasil diperbaiki", 'success');
+                }
+            } catch (PDOException $e) {
+                logMessage("Error memperbaiki collation tabel $table: " . $e->getMessage(), 'error');
+            }
+        }
+    }
+    
+    logMessage('Selesai memperbaiki collation issues', 'success');
 }
 
 ?>
@@ -581,7 +744,9 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                             'payment_gateway_config', 'agent_profile_pricing', 'public_sales', 'payment_methods',
                             'billing_profiles', 'billing_customers', 'billing_invoices', 'billing_payments',
                             'billing_settings', 'billing_logs', 'billing_portal_otps',
-                            'digiflazz_products', 'digiflazz_transactions', 'voucher_settings', 'site_pages'
+                            'digiflazz_products', 'digiflazz_transactions', 'voucher_settings', 'site_pages',
+                            'telegram_settings', 'telegram_webhook_log', 'telegram_user_mapping',
+                            'telegram_package_cache', 'telegram_billing_log'
                         ];
                         
                         $missingCount = 0;
@@ -757,12 +922,16 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `invoice_id` BIGINT UNSIGNED NOT NULL,
                                 `amount` DECIMAL(15,2) NOT NULL,
                                 `fee` DECIMAL(15,2) DEFAULT 0.00,
-                                `status` ENUM('paid','refunded') DEFAULT 'paid',
+                                `status` ENUM('pending','paid','failed') DEFAULT 'paid',
                                 `processed_by` VARCHAR(50) DEFAULT 'system',
-                                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                CONSTRAINT `fk_agent_billing_payments_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE,
+                                `payment_method` VARCHAR(50) DEFAULT 'agent_balance',
+                                `reference_number` VARCHAR(100) DEFAULT NULL,
+                                `notes` TEXT DEFAULT NULL,
+                                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                 INDEX `idx_agent_id` (`agent_id`),
-                                INDEX `idx_invoice_id` (`invoice_id`)
+                                INDEX `idx_invoice_id` (`invoice_id`),
+                                INDEX `idx_status` (`status`),
+                                INDEX `idx_reference` (`reference_number`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
                             
                             'payment_gateway_config' => "CREATE TABLE `payment_gateway_config` (
@@ -999,8 +1168,7 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
                                 PRIMARY KEY (`id`),
                                 UNIQUE KEY `uniq_customer_period` (`customer_id`,`period`),
-                                KEY `idx_status` (`status`),
-                                CONSTRAINT `fk_billing_invoices_customer` FOREIGN KEY (`customer_id`) REFERENCES `billing_customers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+                                KEY `idx_status` (`status`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
                             
                             'billing_settings' => "CREATE TABLE `billing_settings` (
@@ -1019,9 +1187,7 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                 PRIMARY KEY (`id`),
                                 KEY `idx_invoice_id` (`invoice_id`),
-                                KEY `idx_customer_id` (`customer_id`),
-                                CONSTRAINT `fk_billing_logs_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-                                CONSTRAINT `fk_billing_logs_customer` FOREIGN KEY (`customer_id`) REFERENCES `billing_customers`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+                                KEY `idx_customer_id` (`customer_id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
                             
                             'billing_payments' => "CREATE TABLE `billing_payments` (
@@ -1034,14 +1200,16 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 `created_by` INT UNSIGNED DEFAULT NULL,
                                 `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                 PRIMARY KEY (`id`),
-                                KEY `idx_invoice_id` (`invoice_id`),
-                                CONSTRAINT `fk_billing_payments_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+                                KEY `idx_invoice_id` (`invoice_id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
                         ];
                         
                         foreach ($tables as $name => $ddl) {
                             ensureTable($pdo, $name, $ddl);
                         }
+                        
+                        // Fix collation issues setelah semua tabel dibuat
+                        fixCollationIssues($pdo);
                         
                         // === TELEGRAM INTEGRATION TABLES ===
                         logMessage('Installing Telegram integration tables...', 'info');
@@ -1093,16 +1261,96 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
                         ensureTable($pdo, 'telegram_user_mapping', $telegramUserMappingTable);
                         
+                        // Telegram Package Cache Table
+                        $telegramPackageCacheTable = "CREATE TABLE `telegram_package_cache` (
+                            `id` INT AUTO_INCREMENT PRIMARY KEY,
+                            `cache_key` VARCHAR(100) NOT NULL,
+                            `cache_data` LONGTEXT NOT NULL,
+                            `expires_at` TIMESTAMP NOT NULL,
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE KEY `unique_cache_key` (`cache_key`),
+                            INDEX `idx_expires_at` (`expires_at`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+                        ensureTable($pdo, 'telegram_package_cache', $telegramPackageCacheTable);
+                        
+                        // Telegram Billing Log Table
+                        $telegramBillingLogTable = "CREATE TABLE `telegram_billing_log` (
+                            `id` INT AUTO_INCREMENT PRIMARY KEY,
+                            `chat_id` VARCHAR(50) NOT NULL,
+                            `agent_id` INT NULL,
+                            `customer_id` INT UNSIGNED NULL,
+                            `invoice_id` BIGINT UNSIGNED NULL,
+                            `action` VARCHAR(50) NOT NULL,
+                            `amount` DECIMAL(15,2) DEFAULT 0.00,
+                            `status` ENUM('success','failed','pending') DEFAULT 'pending',
+                            `message` TEXT,
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            INDEX `idx_chat_id` (`chat_id`),
+                            INDEX `idx_agent_id` (`agent_id`),
+                            INDEX `idx_customer_id` (`customer_id`),
+                            INDEX `idx_invoice_id` (`invoice_id`),
+                            INDEX `idx_created_at` (`created_at`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+                        ensureTable($pdo, 'telegram_billing_log', $telegramBillingLogTable);
+                        
                         // Add Telegram columns to agents table
                         ensureColumn($pdo, 'agents', 'telegram_chat_id', 'VARCHAR(50) NULL', 'phone');
                         ensureColumn($pdo, 'agents', 'telegram_username', 'VARCHAR(100) NULL', 'telegram_chat_id');
                         ensureColumn($pdo, 'agents', 'preferred_channel', "ENUM('whatsapp', 'telegram', 'both') DEFAULT 'whatsapp'", 'telegram_username');
+                        ensureColumn($pdo, 'agents', 'updated_at', 'TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP', 'created_at');
                         ensureIndex($pdo, 'agents', 'idx_telegram_chat_id', "INDEX `idx_telegram_chat_id` (`telegram_chat_id`)");
                         
                         // Add Telegram column to billing_customers table
                         if (tableExists($pdo, 'billing_customers')) {
                             ensureColumn($pdo, 'billing_customers', 'telegram_chat_id', 'VARCHAR(50) NULL', 'phone');
+                            ensureColumn($pdo, 'billing_customers', 'updated_at', 'TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP', 'created_at');
                             ensureIndex($pdo, 'billing_customers', 'idx_telegram_chat_id', "INDEX `idx_telegram_chat_id` (`telegram_chat_id`)");
+                        }
+                        
+                        // Add additional columns to billing_invoices for Telegram payment tracking
+                        if (tableExists($pdo, 'billing_invoices')) {
+                            ensureColumn($pdo, 'billing_invoices', 'paid_via_agent_id', 'INT UNSIGNED NULL', 'paid_at');
+                            ensureColumn($pdo, 'billing_invoices', 'telegram_notified_at', 'DATETIME NULL', 'created_at');
+                            ensureIndex($pdo, 'billing_invoices', 'idx_paid_via_agent', "INDEX `idx_paid_via_agent` (`paid_via_agent_id`)");
+                        }
+                        
+                        // Ensure agent_billing_payments table has all required columns
+                        if (tableExists($pdo, 'agent_billing_payments')) {
+                            ensureColumn($pdo, 'agent_billing_payments', 'payment_method', 'VARCHAR(50) DEFAULT \'agent_balance\'', 'amount');
+                            ensureColumn($pdo, 'agent_billing_payments', 'reference_number', 'VARCHAR(100) NULL', 'payment_method');
+                            ensureColumn($pdo, 'agent_billing_payments', 'notes', 'TEXT NULL', 'reference_number');
+                            ensureIndex($pdo, 'agent_billing_payments', 'idx_reference', "INDEX `idx_reference` (`reference_number`)");
+                        }
+                        
+                        // === ADD FOREIGN KEY CONSTRAINTS ===
+                        logMessage('Adding foreign key constraints...', 'info');
+                        
+                        // Add foreign key constraints for agent_billing_payments
+                        if (tableExists($pdo, 'agent_billing_payments') && tableExists($pdo, 'agents') && tableExists($pdo, 'billing_invoices')) {
+                            ensureForeignKey($pdo, 'agent_billing_payments', 'fk_abp_agent', 
+                                'FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE');
+                            ensureForeignKey($pdo, 'agent_billing_payments', 'fk_abp_invoice', 
+                                'FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices`(`id`) ON DELETE CASCADE');
+                        }
+                        
+                        // Add foreign key constraints for billing_invoices
+                        if (tableExists($pdo, 'billing_invoices') && tableExists($pdo, 'billing_customers')) {
+                            ensureForeignKey($pdo, 'billing_invoices', 'fk_billing_invoices_customer', 
+                                'FOREIGN KEY (`customer_id`) REFERENCES `billing_customers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE');
+                        }
+                        
+                        // Add foreign key constraints for billing_logs
+                        if (tableExists($pdo, 'billing_logs') && tableExists($pdo, 'billing_invoices') && tableExists($pdo, 'billing_customers')) {
+                            ensureForeignKey($pdo, 'billing_logs', 'fk_billing_logs_invoice', 
+                                'FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices`(`id`) ON DELETE SET NULL ON UPDATE CASCADE');
+                            ensureForeignKey($pdo, 'billing_logs', 'fk_billing_logs_customer', 
+                                'FOREIGN KEY (`customer_id`) REFERENCES `billing_customers`(`id`) ON DELETE SET NULL ON UPDATE CASCADE');
+                        }
+                        
+                        // Add foreign key constraints for billing_payments
+                        if (tableExists($pdo, 'billing_payments') && tableExists($pdo, 'billing_invoices')) {
+                            ensureForeignKey($pdo, 'billing_payments', 'fk_billing_payments_invoice', 
+                                'FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices`(`id`) ON DELETE CASCADE ON UPDATE CASCADE');
                         }
                         
                         // Insert default Telegram settings
@@ -1113,7 +1361,11 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                                 ['telegram_bot_token', ''],
                                 ['telegram_webhook_mode', '1'],
                                 ['telegram_admin_chat_ids', ''],
-                                ['telegram_welcome_message', '🤖 *Selamat datang di Bot MikhMon*\n\nKetik /help untuk melihat perintah yang tersedia.']
+                                ['telegram_welcome_message', '🤖 *Selamat datang di Bot MikhMon*\n\nKetik /help untuk melihat perintah yang tersedia.'],
+                                ['telegram_billing_enabled', '1'],
+                                ['telegram_billing_agent_fee', '0'],
+                                ['telegram_billing_auto_restore', '1'],
+                                ['telegram_billing_notification', '1']
                             ];
                             
                             foreach ($defaultTelegramSettings as $setting) {
@@ -1122,6 +1374,27 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                             logMessage('Default Telegram settings inserted', 'success');
                         } catch (Exception $e) {
                             logMessage('Error inserting Telegram settings: ' . $e->getMessage(), 'error');
+                        }
+                        
+                        // Create cache directory if not exists
+                        $cacheDir = __DIR__ . '/cache';
+                        if (!is_dir($cacheDir)) {
+                            if (mkdir($cacheDir, 0755, true)) {
+                                logMessage('Cache directory created: ' . $cacheDir, 'success');
+                            } else {
+                                logMessage('Failed to create cache directory: ' . $cacheDir, 'warning');
+                            }
+                        } else {
+                            logMessage('Cache directory already exists', 'info');
+                        }
+                        
+                        // Create .htaccess for cache directory security
+                        $htaccessFile = $cacheDir . '/.htaccess';
+                        if (!file_exists($htaccessFile)) {
+                            $htaccessContent = "# Deny direct access to cache files\nDeny from all\n";
+                            if (file_put_contents($htaccessFile, $htaccessContent)) {
+                                logMessage('Cache .htaccess created for security', 'success');
+                            }
                         }
                         
                         logMessage('Telegram integration installed successfully!', 'success');
@@ -1141,7 +1414,7 @@ function ensureAgent($pdo, $code, $name, $status = 'active') {
                         
                         ensureColumn($pdo, 'agent_settings', 'setting_type', "VARCHAR(20) DEFAULT 'string'", 'setting_value');
                         ensureColumn($pdo, 'agent_settings', 'description', 'TEXT', 'setting_type');
-                        ensureColumn($pdo, 'agent_settings', 'updated_by', 'VARCHAR(50)', 'updated_at');
+                        ensureColumn($pdo, 'agent_settings', 'updated_by', 'VARCHAR(50)', 'created_at');
                         
                         ensureIndex($pdo, 'agent_settings', 'idx_agent_id', "INDEX `idx_agent_id` (`agent_id`)");
                         

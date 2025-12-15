@@ -439,8 +439,46 @@ foreach ($paymentColumns as $column => $definition) {
 if (!columnExists($pdo, 'agent_settings', 'agent_id')) {
     logMessage('Menambahkan kolom agent_settings.agent_id ...', 'warn');
     $pdo->exec("ALTER TABLE `agent_settings` ADD COLUMN `agent_id` INT NOT NULL DEFAULT 1 AFTER `id`");
-    $pdo->exec("ALTER TABLE `agent_settings` ADD CONSTRAINT `fk_agent_settings_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE");
     logMessage('Kolom agent_settings.agent_id ditambahkan', 'ok');
+}
+
+// Pastikan agents table ada dan memiliki data sebelum menambahkan constraint
+try {
+    // Cek apakah tabel agents ada
+    if (tableExists($pdo, 'agents')) {
+        // Cek apakah ada agent dalam tabel
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM agents");
+        $stmt->execute();
+        $agentCount = $stmt->fetchColumn();
+        
+        if ($agentCount > 0) {
+            // Cek apakah constraint sudah ada
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_settings' AND CONSTRAINT_NAME = 'fk_agent_settings_agent'");
+            $stmt->execute();
+            $constraintExists = $stmt->fetchColumn();
+            
+            if (!$constraintExists) {
+                // Perbaiki data yang tidak valid sebelum menambahkan constraint
+                $stmt = $pdo->prepare("SELECT id FROM agents ORDER BY id LIMIT 1");
+                $stmt->execute();
+                $firstAgentId = $stmt->fetchColumn() ?: 1;
+                
+                $pdo->exec("UPDATE `agent_settings` SET `agent_id` = $firstAgentId WHERE `agent_id` IS NULL OR `agent_id` = 0 OR `agent_id` NOT IN (SELECT id FROM agents)");
+                
+                // Sekarang aman untuk menambahkan constraint
+                $pdo->exec("ALTER TABLE `agent_settings` ADD CONSTRAINT `fk_agent_settings_agent` FOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON DELETE CASCADE");
+                logMessage('Constraint fk_agent_settings_agent ditambahkan dengan aman', 'ok');
+            } else {
+                logMessage('Constraint fk_agent_settings_agent sudah ada', 'info');
+            }
+        } else {
+            logMessage('Tidak ada agent dalam tabel agents, melewati penambahan constraint', 'warn');
+        }
+    } else {
+        logMessage('Tabel agents tidak ditemukan, melewati penambahan constraint', 'warn');
+    }
+} catch (Exception $e) {
+    logMessage('Gagal menambahkan constraint fk_agent_settings_agent: ' . $e->getMessage(), 'error');
 }
 
 // Memastikan kolom setting_type dan description ada

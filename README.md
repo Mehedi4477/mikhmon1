@@ -80,6 +80,25 @@ Proyek ini merupakan pengembangan lanjutan dari [MikhMon V3](https://github.com/
 - One-click installation
 - Auto-fix compatibility issues
 
+## 🏗️ Arsitektur Sistem
+
+```mermaid
+graph TB
+    A[Customer] --> B[Public Order Page]
+    C[Agent] --> D[Agent Panel]
+    E[Admin] --> F[Admin Panel]
+    B --> G[Payment Gateway]
+    D --> H[MikhMon Core]
+    F --> H
+    G --> I[Payment Callback]
+    I --> J[Database]
+    H --> J
+    J --> K[MikroTik Router]
+    L[WhatsApp] --> M[Webhook Handler]
+    M --> H
+    H --> N[Notification System]
+    N --> L
+```
 
 ### Komponen Utama:
 1. **Frontend Public** - Landing page untuk pembelian langsung
@@ -107,31 +126,22 @@ Proyek ini merupakan pengembangan lanjutan dari [MikhMon V3](https://github.com/
 
 2. **Buat Database**
    ```sql
-   buat database name dan usernya di hosting
+   CREATE DATABASE mikhmon_agents CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
 3. **Konfigurasi Database**
-   Edit file `include/db_config.php`: atau jalankan
+   Edit file `include/db_config.php`:
    ```php
-   https://domain.anda/install.php
+   define('DB_HOST', 'localhost');
+   define('DB_USER', 'your_db_user');
+   define('DB_PASS', 'your_db_password');
+   define('DB_NAME', 'mikhmon_agents');
    ```
-kalau sudah sukses abaikan perintah no 4
 
-4. **Run Installer** <br>
+4. **Run Installer**
+   Akses `http://your-domain/install_database_bulletproof.php` dan ikuti petunjuknya.
 
-coppy paste link ini ke browser<br> 
-```
-http://ganti_dengan_domain_anda/fix_all_modules.php?key=fix-all-2024
-```
-5. ### Konfigurasi Tambahan Cronjob
-coppy paste link ini ke browser<br> 
-```
-http://ganti_dengan_domain_anda/check_cron_path.php
-```
-
-pilih coppy command dan masukan ke cronjob supaya tagihan akan di generate setiap tanggal 1 tiap bulan
-
-user login : alijaya password : 060111
+### Konfigurasi Tambahan
 
 #### WhatsApp Integration
 1. Setup webhook di gateway WhatsApp (Fonnte/Wablas/WooWA)
@@ -194,17 +204,6 @@ Project Link: [https://github.com/alijayanet/mikhmon-agent](https://github.com/a
   Made with ❤️ by Ali Jaya Net
 
 </p>
-
-
-
-
-
-
-
-
-
-
-
 
 
 

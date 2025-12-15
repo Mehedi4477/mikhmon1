@@ -224,6 +224,10 @@
         $billingCronPath = $currentDir . '/process/billing_cron.php';
         $billingCronExists = file_exists($billingCronPath);
         
+        // Deteksi telegram cache warmer
+        $telegramCachePath = $currentDir . '/scripts/telegram_cache_warmer.php';
+        $telegramCacheExists = file_exists($telegramCachePath);
+        
         // Deteksi PHP binary
         $phpBinary = PHP_BINARY;
         if (empty($phpBinary) || !file_exists($phpBinary)) {
@@ -245,6 +249,11 @@
         $logDir = $currentDir . '/logs';
         $logDirExists = is_dir($logDir);
         $logDirWritable = $logDirExists && is_writable($logDir);
+        
+        // Cek cache directory untuk telegram
+        $cacheDir = $currentDir . '/cache';
+        $cacheDirExists = is_dir($cacheDir);
+        $cacheDirWritable = $cacheDirExists && is_writable($cacheDir);
         
         // Alternatif log path
         $homeDir = getenv('HOME') ?: '/home/' . $currentUser;
@@ -288,6 +297,10 @@
                 <div class="info-value"><?php echo htmlspecialchars($billingCronPath); ?></div>
             </div>
             <div class="info-item">
+                <span class="info-label">Telegram Cache Warmer Path:</span>
+                <div class="info-value"><?php echo htmlspecialchars($telegramCachePath); ?></div>
+            </div>
+            <div class="info-item">
                 <span class="info-label">PHP Binary Path:</span>
                 <div class="info-value"><?php echo htmlspecialchars($phpBinary); ?></div>
             </div>
@@ -300,6 +313,10 @@
                 <span class="icon"><?php echo $billingCronExists ? '✓' : '✗'; ?></span>
                 <span>billing_cron.php <?php echo $billingCronExists ? 'FOUND' : 'NOT FOUND'; ?></span>
             </div>
+            <div class="check-item <?php echo $telegramCacheExists ? 'ok' : 'fail'; ?>">
+                <span class="icon"><?php echo $telegramCacheExists ? '✓' : '✗'; ?></span>
+                <span>telegram_cache_warmer.php <?php echo $telegramCacheExists ? 'FOUND' : 'NOT FOUND'; ?></span>
+            </div>
             <div class="check-item <?php echo $logDirExists ? 'ok' : 'fail'; ?>">
                 <span class="icon"><?php echo $logDirExists ? '✓' : '✗'; ?></span>
                 <span>logs/ directory <?php echo $logDirExists ? 'EXISTS' : 'NOT FOUND'; ?></span>
@@ -307,6 +324,14 @@
             <div class="check-item <?php echo $logDirWritable ? 'ok' : 'fail'; ?>">
                 <span class="icon"><?php echo $logDirWritable ? '✓' : '✗'; ?></span>
                 <span>logs/ directory <?php echo $logDirWritable ? 'WRITABLE' : 'NOT WRITABLE'; ?></span>
+            </div>
+            <div class="check-item <?php echo $cacheDirExists ? 'ok' : 'fail'; ?>">
+                <span class="icon"><?php echo $cacheDirExists ? '✓' : '✗'; ?></span>
+                <span>cache/ directory <?php echo $cacheDirExists ? 'EXISTS' : 'NOT FOUND'; ?></span>
+            </div>
+            <div class="check-item <?php echo $cacheDirWritable ? 'ok' : 'fail'; ?>">
+                <span class="icon"><?php echo $cacheDirWritable ? '✓' : '✗'; ?></span>
+                <span>cache/ directory <?php echo $cacheDirWritable ? 'WRITABLE' : 'NOT WRITABLE'; ?></span>
             </div>
         </div>
         
@@ -318,6 +343,14 @@
         </div>
         <?php endif; ?>
         
+        <?php if (!$telegramCacheExists): ?>
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> File telegram_cache_warmer.php tidak ditemukan di path: <code><?php echo htmlspecialchars($telegramCachePath); ?></code>
+            <br><br>
+            Cache warmer akan dilewati dalam cronjob. Telegram bot mungkin akan lebih lambat saat pertama kali diakses.
+        </div>
+        <?php endif; ?>
+        
         <?php if (!$logDirWritable && $logDirExists): ?>
         <div class="warning">
             <strong>⚠️ Warning:</strong> Folder logs/ tidak writable. Cronjob mungkin tidak bisa menulis log.
@@ -326,20 +359,36 @@
         </div>
         <?php endif; ?>
         
+        <?php if (!$cacheDirWritable && $cacheDirExists): ?>
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> Folder cache/ tidak writable. Telegram cache warmer mungkin tidak bisa menulis cache.
+            <br><br>
+            Jalankan command: <code>chmod 755 <?php echo htmlspecialchars($cacheDir); ?></code>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (!$cacheDirExists && $telegramCacheExists): ?>
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> Folder cache/ tidak ditemukan. Telegram cache warmer akan membuat folder otomatis.
+            <br><br>
+            Atau buat manual dengan: <code>mkdir <?php echo htmlspecialchars($cacheDir); ?> && chmod 755 <?php echo htmlspecialchars($cacheDir); ?></code>
+        </div>
+        <?php endif; ?>
+        
         <!-- Cronjob Commands -->
         <div class="command-box">
-            <h3>🚀 Recommended Cronjob Commands</h3>
+            <h3>🚀 Recommended Cronjob Commands (Billing + Telegram Cache)</h3>
             
             <p style="color: #9cdcfe; margin-bottom: 15px;">1. Daily at 00:30 (Recommended for Production)</p>
-            <div class="command" id="cmd1">30 0 * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?> 2>&1</div>
+            <div class="command" id="cmd1">30 0 * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?> 2>&1<?php if ($telegramCacheExists): ?> && <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/telegram_cache.log' : $homeDir . '/logs/telegram_cache.log'); ?> 2>&1<?php endif; ?></div>
             <button class="copy-btn" onclick="copyCommand('cmd1')">📋 Copy Command</button>
             
             <p style="color: #9cdcfe; margin-bottom: 15px; margin-top: 20px;">2. Every 6 Hours (For Testing)</p>
-            <div class="command" id="cmd2">0 */6 * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?> 2>&1</div>
+            <div class="command" id="cmd2">0 */6 * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?> 2>&1<?php if ($telegramCacheExists): ?> && <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/telegram_cache.log' : $homeDir . '/logs/telegram_cache.log'); ?> 2>&1<?php endif; ?></div>
             <button class="copy-btn" onclick="copyCommand('cmd2')">📋 Copy Command</button>
             
             <p style="color: #9cdcfe; margin-bottom: 15px; margin-top: 20px;">3. Every Hour (For Development/Testing)</p>
-            <div class="command" id="cmd3">0 * * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?> 2>&1</div>
+            <div class="command" id="cmd3">0 * * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?> 2>&1<?php if ($telegramCacheExists): ?> && <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/telegram_cache.log' : $homeDir . '/logs/telegram_cache.log'); ?> 2>&1<?php endif; ?></div>
             <button class="copy-btn" onclick="copyCommand('cmd3')">📋 Copy Command</button>
             
             <p style="color: #9cdcfe; margin-bottom: 15px; margin-top: 20px;">4. Using wget (If PHP CLI not available)</p>
@@ -347,12 +396,39 @@
             <button class="copy-btn" onclick="copyCommand('cmd4')">📋 Copy Command</button>
         </div>
         
+        <?php if ($telegramCacheExists): ?>
+        <!-- Separate Telegram Cache Commands -->
+        <div class="command-box">
+            <h3>🤖 Telegram Cache Only (Optional - Separate Schedule)</h3>
+            <p style="color: #9cdcfe; margin-bottom: 15px;">Jika ingin menjalankan cache warmer lebih sering (misalnya setiap 30 menit):</p>
+            
+            <p style="color: #9cdcfe; margin-bottom: 15px;">Every 30 minutes (High Performance):</p>
+            <div class="command" id="cmd_tg1">*/30 * * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/telegram_cache.log' : $homeDir . '/logs/telegram_cache.log'); ?> 2>&1</div>
+            <button class="copy-btn" onclick="copyCommand('cmd_tg1')">📋 Copy Command</button>
+            
+            <p style="color: #9cdcfe; margin-bottom: 15px; margin-top: 20px;">Every 15 minutes (Ultra Performance):</p>
+            <div class="command" id="cmd_tg2">*/15 * * * * <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?> >> <?php echo htmlspecialchars($logDirExists ? $logDir . '/telegram_cache.log' : $homeDir . '/logs/telegram_cache.log'); ?> 2>&1</div>
+            <button class="copy-btn" onclick="copyCommand('cmd_tg2')">📋 Copy Command</button>
+        </div>
+        <?php endif; ?>
+        
         <!-- Manual Test Command -->
         <div class="command-box">
-            <h3>🧪 Manual Test Command (via SSH)</h3>
-            <p style="color: #9cdcfe; margin-bottom: 15px;">Run this command to test the cron script manually:</p>
+            <h3>🧪 Manual Test Commands (via SSH)</h3>
+            
+            <p style="color: #9cdcfe; margin-bottom: 15px;">Test Billing Cron:</p>
             <div class="command" id="cmd5"><?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?></div>
             <button class="copy-btn" onclick="copyCommand('cmd5')">📋 Copy Command</button>
+            
+            <?php if ($telegramCacheExists): ?>
+            <p style="color: #9cdcfe; margin-bottom: 15px; margin-top: 20px;">Test Telegram Cache Warmer:</p>
+            <div class="command" id="cmd6"><?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?></div>
+            <button class="copy-btn" onclick="copyCommand('cmd6')">📋 Copy Command</button>
+            
+            <p style="color: #9cdcfe; margin-bottom: 15px; margin-top: 20px;">Test Both Scripts Together:</p>
+            <div class="command" id="cmd7"><?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($billingCronPath); ?> && <?php echo htmlspecialchars($phpBinary); ?> <?php echo htmlspecialchars($telegramCachePath); ?></div>
+            <button class="copy-btn" onclick="copyCommand('cmd7')">📋 Copy Command</button>
+            <?php endif; ?>
         </div>
         
         <!-- Setup Instructions -->
@@ -366,8 +442,19 @@
                 <li>Paste ke field <strong>Command</strong></li>
                 <li>Klik <strong>Add New Cron Job</strong></li>
                 <li>Tunggu cronjob berjalan sesuai jadwal</li>
-                <li>Monitor log di: <code><?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?></code></li>
+                <li>Monitor log billing di: <code><?php echo htmlspecialchars($logDirExists ? $logDir . '/billing_cron.log' : $altLogPath); ?></code></li>
+                <?php if ($telegramCacheExists): ?>
+                <li>Monitor log telegram cache di: <code><?php echo htmlspecialchars($logDirExists ? $logDir . '/telegram_cache.log' : $homeDir . '/logs/telegram_cache.log'); ?></code></li>
+                <?php endif; ?>
             </ol>
+            
+            <?php if ($telegramCacheExists): ?>
+            <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-top: 15px;">
+                <strong>💡 Tentang Telegram Cache Warmer:</strong><br>
+                Script ini akan memuat cache paket MikroTik untuk mempercepat response Telegram bot. 
+                Cache akan di-refresh secara otomatis setiap kali cronjob berjalan, memastikan bot selalu responsif.
+            </div>
+            <?php endif; ?>
         </div>
         
         <div class="delete-warning">

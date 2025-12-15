@@ -142,9 +142,6 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
 
 ?>
 
-<!-- Include responsive tables CSS -->
-<link rel="stylesheet" href="./css/responsive-tables.css">
-
 <style>
 .summary-box {
     display: grid;
@@ -324,8 +321,6 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
                 <h3><i class="fa fa-list"></i> Ringkasan Produk</h3>
             </div>
             <div class="card-body">
-                <!-- Desktop Table View -->
-                <div class="desktop-only">
                 <table class="table table-striped">
                     <thead>
                         <tr>
@@ -338,9 +333,7 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
                     <tbody>
                         <?php
                         $summary = $db->query("SELECT type, SUM(status = 'active') AS active_count, SUM(status = 'inactive') AS inactive_count, COUNT(*) AS total FROM digiflazz_products GROUP BY type ORDER BY type");
-                        $summaryData = [];
                         while ($row = $summary->fetch(PDO::FETCH_ASSOC)) {
-                            $summaryData[] = $row;
                             echo '<tr>';
                             echo '<td>' . htmlspecialchars(strtoupper($row['type'])) . '</td>';
                             echo '<td>' . number_format($row['total']) . '</td>';
@@ -351,38 +344,6 @@ $statusLabel = $enabled ? 'AKTIF' : 'NON-AKTIF';
                         ?>
                     </tbody>
                 </table>
-                </div>
-                
-                <!-- Mobile Card View -->
-                <div class="mobile-only">
-                    <?php foreach ($summaryData as $row): ?>
-                    <div class="data-card">
-                        <div class="data-card-header">
-                            <div class="data-card-title">
-                                <i class="fa fa-tag"></i> <?= htmlspecialchars(strtoupper($row['type'])); ?>
-                            </div>
-                            <div class="data-card-badge" style="color: #3c8dbc; font-weight: bold;">
-                                <?= number_format($row['total']); ?> produk
-                            </div>
-                        </div>
-                        
-                        <div class="data-row">
-                            <span class="data-label">Total Produk:</span>
-                            <span class="data-value"><?= number_format($row['total']); ?></span>
-                        </div>
-                        
-                        <div class="data-row">
-                            <span class="data-label">Produk Aktif:</span>
-                            <span class="data-value" style="color: #10b981;"><?= number_format($row['active_count']); ?></span>
-                        </div>
-                        
-                        <div class="data-row">
-                            <span class="data-label">Produk Non-Aktif:</span>
-                            <span class="data-value" style="color: #ef4444;"><?= number_format($row['inactive_count']); ?></span>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
             </div>
         </div>
         <?php endif; ?>

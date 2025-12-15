@@ -822,7 +822,7 @@ function fixCollationIssues($pdo) {
                                 `password` VARCHAR(255),
                                 `address` TEXT,
                                 `balance` DECIMAL(15,2) DEFAULT 0.00,
-                                `commission_rate` DECIMAL(5,2) DEFAULT 0.00,
+                                `commission_percent` DECIMAL(5,2) DEFAULT 0.00,
                                 `status` ENUM('active','inactive','suspended') DEFAULT 'active',
                                 `level` ENUM('bronze','silver','gold','platinum') DEFAULT 'bronze',
                                 `created_by` VARCHAR(50),

@@ -252,16 +252,16 @@ $session = $_GET['session'] ?? (isset($session) ? $session : '');
             <?php foreach ($agentPrices as $price): ?>
             <tr>
                 <td><strong><?= $price['profile_name']; ?></strong></td>
-                <td>Rp <?= number_format($price['buy_price'], 0, ',', '.'); ?></td>
+                <td>Rp <?= number_format($price['agent_price'], 0, ',', '.'); ?></td>
                 <td>Rp <?= number_format($price['sell_price'], 0, ',', '.'); ?></td>
-                <td style="color: #10b981; font-weight: bold;">Rp <?= number_format($price['sell_price'] - $price['buy_price'], 0, ',', '.'); ?></td>
-                <td><?= date('d M Y', strtotime($price['updated_at'])); ?></td>
+                <td style="color: #10b981; font-weight: bold;">Rp <?= number_format($price['profit'], 0, ',', '.'); ?></td>
+                <td><?= isset($price['updated_at']) ? date('d M Y', strtotime($price['updated_at'])) : '-'; ?></td>
                 <td>
-                    <button onclick="editPrice(<?= $agt['id']; ?>, '<?= $price['profile_name']; ?>', <?= $price['buy_price']; ?>, <?= $price['sell_price']; ?>)" 
+                    <button onclick="editPrice(<?= $agt['id']; ?>, '<?= $price['profile_name']; ?>', <?= $price['agent_price']; ?>, <?= $price['sell_price']; ?>)" 
                             class="btn btn-sm btn-warning" title="Edit">
                         <i class="fa fa-edit"></i>
                     </button>
-                    <a href="?hotspot=agent-prices&delete=<?= $price['id']; ?>&session=<?= $session; ?>" 
+                    <a href="?hotspot=agent-prices&delete=<?= isset($price['id']) ? $price['id'] : ''; ?>&session=<?= $session; ?>" 
                        onclick="return confirm('Yakin ingin menghapus harga untuk profile <?= $price['profile_name']; ?>?')"
                        class="btn btn-sm btn-danger" title="Hapus">
                         <i class="fa fa-trash"></i>

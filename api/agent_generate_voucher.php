@@ -161,7 +161,7 @@ try {
         }
     }
     
-    // Get profile details for validity
+    // Get profile details for validity BEFORE disconnecting
     $profiles = $API->comm("/ip/hotspot/user/profile/print", array(
         "?name" => $profileName
     ));
@@ -202,6 +202,7 @@ try {
     
     $loginUrl = !empty($dnsName) ? "http://$dnsName" : "http://$iphost";
     
+    // NOW disconnect from MikroTik
     $API->disconnect();
     
     // Send WhatsApp notification if customer phone is provided
@@ -210,50 +211,7 @@ try {
     
     if (!empty($customerPhone) && !empty($generatedVouchers) && WHATSAPP_ENABLED) {
         try {
-            // Get hotspot name from MikroTik config
-            $hotspotName = 'WiFi Hotspot'; // Default
-            if (isset($data[$session][4])) {
-                $hotspotNameRaw = explode('%', $data[$session][4])[1] ?? '';
-                if (!empty($hotspotNameRaw)) {
-                    $hotspotName = $hotspotNameRaw;
-                }
-            }
-            
-            // Get DNS name from config (format: dnsname@|@value)
-            $dnsName = '';
-            if (isset($data[$session][5])) {
-                $dnsNameRaw = explode('@|@', $data[$session][5])[1] ?? '';
-                if (!empty($dnsNameRaw)) {
-                    $dnsName = $dnsNameRaw;
-                }
-            }
-            
-            // If no DNS, try to get from hotspot name field
-            if (empty($dnsName) && isset($data[$session][4])) {
-                $parts = explode('@|@', $data[$session][4]);
-                if (count($parts) > 1) {
-                    $dnsName = $parts[1];
-                }
-            }
-            
-            // Fallback to IP if no DNS configured
-            $loginUrl = !empty($dnsName) ? "http://$dnsName" : "http://$iphost";
-            
-            // Get profile details from MikroTik to get validity
-            $profiles = $API->comm("/ip/hotspot/user/profile/print", array(
-                "?name" => $profileName
-            ));
-            
-            $validity = 'N/A';
             $profilePrice = $priceData['sell_price'];
-            
-            if (!empty($profiles) && isset($profiles[0]['on-login'])) {
-                $onLogin = $profiles[0]['on-login'];
-                $parts = explode(",", $onLogin);
-                if (isset($parts[3])) {
-                    $validity = trim($parts[3]);
-                }
-            }
             
             if (count($generatedVouchers) == 1) {
                 // Single voucher - match exact format from user's example

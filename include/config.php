@@ -1,7 +1,7 @@
 <?php 
 if(substr($_SERVER["REQUEST_URI"], -10) == "config.php"){header("Location:./");}; 
-$data['mikhmon'] = array ('1'=>'mikhmon<|<alijaya','mikhmon>|>aGdiaWJj');
+$data['mikhmon'] = array ('1'=>'mikhmon<|<M','mikhmon>|>pQ==');
 
-$data['ALIJAYA-NET'] = array ('1'=>'ALIJAYA-NET!192.168.8.1:8700','ALIJAYA-NET@|@alijaya','ALIJAYA-NET#|#aGdiaWJj','ALIJAYA-NET%ALIJAYA-NET','ALIJAYA-NET^alijayanet.login','ALIJAYA-NET&Rp','ALIJAYA-NET*10','ALIJAYA-NET(1','ALIJAYA-NET)','ALIJAYA-NET=10','ALIJAYA-NET@!@enable');
+$data['Rasel'] = array ('1'=>'Rasel!remotemikrotik.mywire.org:44336','Rasel@|@admin','Rasel#|#qpKlnZ1ymZWfoZ8=','Rasel%Rasel WiFi Zone','Rasel^Raselwifi.net','Rasel& ','Rasel*10','Rasel(1','Rasel)','Rasel=10','Rasel@!@enable');
 
 
